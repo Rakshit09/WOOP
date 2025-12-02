@@ -65,16 +65,92 @@ def load_active_projects():
 # Helper Functions
 # ============================
 def get_user_email():
-    """Extract user email from Posit Connect authentication header."""
-    # Try to get from Posit Connect header
-    user_email = request.headers.get('X-Auth-User')
+    """Extract user email/identity from Posit Connect headers."""
     
-    # Fallback for development/testing
-    if not user_email:
-        user_email = request.args.get('user', 'dev.user@example.com')
+    # ============================================
+    # DEBUG: Uncomment to see all available headers
+    # Check your Posit Connect logs after accessing the app
+    # ============================================
+    import sys
+    print("=== Request Headers ===", file=sys.stderr)
+    for key, value in request.headers:
+         print(f"{key}: {value}", file=sys.stderr)
+    print("=== Environment Variables ===", file=sys.stderr)
+    for key, value in os.environ.items():
+         if 'USER' in key.upper() or 'CONNECT' in key.upper() or 'RSC' in key.upper():
+             print(f"{key}: {value}", file=sys.stderr)
+    print("========================", file=sys.stderr)
     
-    return user_email
-
+    # -----------------------------------------
+    # 1. Modern Posit Connect Headers (v2023+)
+    # -----------------------------------------
+    user_email = request.headers.get('X-RSC-User-Email')
+    if user_email:
+        return user_email
+    
+    user_name = request.headers.get('X-RSC-User-Name')
+    if user_name:
+        return user_name
+    
+    # Also try with different casing
+    user_email = request.headers.get('X-Rsc-User-Email')
+    if user_email:
+        return user_email
+    
+    # -----------------------------------------
+    # 2. Legacy RStudio Connect Headers
+    # -----------------------------------------
+    legacy_headers = [
+        'RStudio-Connect-Credentials',
+        'Rstudio-Connect-User',
+        'Posit-Connect-User',
+        'Posit-Connect-Email',
+        'RStudio-Connect-Email',
+    ]
+    
+    for header in legacy_headers:
+        value = request.headers.get(header)
+        if value:
+            return value
+    
+    # -----------------------------------------
+    # 3. Proxy Authentication Headers
+    # -----------------------------------------
+    proxy_headers = [
+        'X-Auth-Username',
+        'X-Auth-Email',
+        'X-Forwarded-User',
+        'X-Remote-User',
+        'Remote-User',
+    ]
+    
+    for header in proxy_headers:
+        value = request.headers.get(header)
+        if value:
+            return value
+    
+    # -----------------------------------------
+    # 4. Environment Variables (for some contexts)
+    # -----------------------------------------
+    env_vars = [
+        'RSTUDIO_CONNECT_USER',
+        'CONNECT_USER',
+        'SHINY_USER',
+    ]
+    
+    for var in env_vars:
+        value = os.environ.get(var)
+        if value:
+            return value
+    
+    # -----------------------------------------
+    # 5. Fallback for Local Development Only
+    # -----------------------------------------
+    if os.environ.get('FLASK_DEBUG') or os.environ.get('FLASK_ENV') == 'development':
+        return request.args.get('user', 'dev.user@example.com')
+    
+    # Return None or a clear indicator if no auth found
+    return None
 
 def get_next_monday():
     """Calculate the date of the upcoming Monday in YYYY-MM-DD format."""
@@ -169,13 +245,11 @@ def submit():
         return jsonify({'error': 'Week commencing date is required'}), 400
     
     try:
-        # Transaction: Delete existing entries for this user/week, then insert new ones
         TimesheetEntry.query.filter_by(
             user_email=user_email,
             week_commencing=week_commencing
         ).delete()
         
-        # Insert new entries (skip empty rows)
         for row in rows:
             project = row.get('project', '').strip()
             days = row.get('days')
@@ -203,24 +277,13 @@ def submit():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-
-# ============================
-# Database Initialization
-# ============================
 def init_db():
     """Initialize the database tables."""
     with app.app_context():
         db.create_all()
         print("Database initialized successfully.")
 
-
-# ============================
-# Application Entry Point
-# ============================
 if __name__ == '__main__':
-    # Create database tables if they don't exist
     init_db()
-    
-    # Run the Flask development server
     app.run(debug=True, host='0.0.0.0', port=5000)
 
