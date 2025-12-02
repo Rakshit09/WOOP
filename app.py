@@ -132,12 +132,14 @@ def get_user_email():
 
 
 def get_next_monday():
-    """Calculate the date of the upcoming Monday in YYYY-MM-DD format."""
+    """Calculate the date of the upcoming Monday in YYYY-MM-DD format.
+    If today is Monday, returns today. Otherwise returns next Monday.
+    """
     today = datetime.now().date()
-    days_ahead = 0 - today.weekday()
-    if days_ahead <= 0:
-        days_ahead += 7
-    next_monday = today + timedelta(days=days_ahead)
+    days_until_monday = (7 - today.weekday()) % 7
+    # If today is Monday, days_until_monday is 0 (use today)
+    # Otherwise, calculate days until next Monday
+    next_monday = today + timedelta(days=days_until_monday)
     return next_monday.strftime('%Y-%m-%d')
 
 

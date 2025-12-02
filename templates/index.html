@@ -11,6 +11,11 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
+    <!-- Flatpickr Date Picker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    
     <script>
         tailwind.config = {
             theme: {
@@ -610,6 +615,58 @@
         /* Divider line */
         .brand-divider {
             background: linear-gradient(90deg, #001F3F 0%, #0078D4 50%, #001F3F 100%);
+        }
+        
+        /* Flatpickr custom styling */
+        .flatpickr-calendar {
+            border-radius: 16px !important;
+            box-shadow: 0 8px 30px rgba(0, 31, 63, 0.15) !important;
+            border: 1px solid rgba(0, 31, 63, 0.08) !important;
+            font-family: 'Inter', sans-serif !important;
+        }
+        
+        .flatpickr-day.flatpickr-disabled,
+        .flatpickr-day.flatpickr-disabled:hover {
+            color: #cbd5e1 !important;
+            background: #f8fafc !important;
+            cursor: not-allowed !important;
+            text-decoration: line-through;
+        }
+        
+        .flatpickr-day.selected {
+            background: linear-gradient(135deg, #0078D4 0%, #00A3E0 100%) !important;
+            border-color: #0078D4 !important;
+        }
+        
+        .flatpickr-day:hover:not(.flatpickr-disabled) {
+            background: rgba(0, 120, 212, 0.1) !important;
+            border-color: #0078D4 !important;
+        }
+        
+        .flatpickr-months .flatpickr-month {
+            background: linear-gradient(135deg, #001F3F 0%, #0a2540 100%) !important;
+            border-radius: 14px 14px 0 0 !important;
+        }
+        
+        .flatpickr-current-month .flatpickr-monthDropdown-months,
+        .flatpickr-current-month input.cur-year {
+            color: white !important;
+            font-weight: 600 !important;
+        }
+        
+        .flatpickr-months .flatpickr-prev-month,
+        .flatpickr-months .flatpickr-next-month {
+            fill: white !important;
+        }
+        
+        .flatpickr-months .flatpickr-prev-month:hover svg,
+        .flatpickr-months .flatpickr-next-month:hover svg {
+            fill: #00A3E0 !important;
+        }
+        
+        span.flatpickr-weekday {
+            color: #001F3F !important;
+            font-weight: 600 !important;
         }
     </style>
 </head>
@@ -1227,9 +1284,34 @@
             }
         });
 
-        // Initialize with one empty row
+        // Initialize with one empty row and date picker
         document.addEventListener('DOMContentLoaded', () => {
             addNewRow();
+            
+            // Initialize Flatpickr on date input - only allow Mondays
+            flatpickr("#weekDate", {
+                dateFormat: "Y-m-d",
+                defaultDate: "{{ default_date }}",
+                // Disable all days except Monday (weekday 1)
+                disable: [
+                    function(date) {
+                        // Return true to disable, false to enable
+                        // date.getDay() returns 0=Sunday, 1=Monday, ..., 6=Saturday
+                        return date.getDay() !== 1; // Disable if not Monday
+                    }
+                ],
+                locale: {
+                    firstDayOfWeek: 1 // Start week on Monday
+                },
+                onReady: function(selectedDates, dateStr, instance) {
+                    // Add helper text below calendar
+                    const calendarContainer = instance.calendarContainer;
+                    const helperDiv = document.createElement('div');
+                    helperDiv.style.cssText = 'padding: 10px 15px; font-size: 12px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0;';
+                    helperDiv.innerHTML = '📅 Only Mondays can be selected';
+                    calendarContainer.appendChild(helperDiv);
+                }
+            });
         });
     </script>
 </body>
