@@ -6,10 +6,14 @@ A Flask-based web app for weekly resource scheduling with zero-friction design.
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
+from functools import lru_cache
 import pandas as pd
+import requests
+import urllib3
+import json
 import os
 
-# Initialize Flask app
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 app = Flask(__name__)
 
 # Configuration
@@ -29,7 +33,7 @@ class TimesheetEntry(db.Model):
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_email = db.Column(db.String(255), nullable=False, index=True)
-    week_commencing = db.Column(db.String(10), nullable=False, index=True)  # YYYY-MM-DD format
+    week_commencing = db.Column(db.String(10), nullable=False, index=True)
     project_name = db.Column(db.String(255), nullable=False)
     days = db.Column(db.Float, nullable=False)
     notes = db.Column(db.Text, nullable=True)
@@ -52,7 +56,6 @@ def load_active_projects():
     
     try:
         df = pd.read_csv(csv_path)
-        # Filter for active projects only
         active_df = df[df['Active'] == True]
         projects = active_df['ProjectName'].tolist()
         return sorted(projects)
@@ -62,105 +65,78 @@ def load_active_projects():
 
 
 # ============================
-# Helper Functions
+# User Authentication
 # ============================
-def get_user_email():
-    """Extract user email/identity from Posit Connect headers."""
+@lru_cache(maxsize=100)
+def lookup_email_by_username(username):
+    """
+    Fetch user email from Posit Connect API.
+    Results are cached to avoid repeated API calls.
+    """
+    connect_server = os.environ.get('CONNECT_SERVER', '').rstrip('/')
+    api_key = os.environ.get('CONNECT_API_KEY', '')
     
-    # ============================================
-    # DEBUG: Uncomment to see all available headers
-    # Check your Posit Connect logs after accessing the app
-    # ============================================
-    import sys
-    print("=== Request Headers ===", file=sys.stderr)
-    for key, value in request.headers:
-         print(f"{key}: {value}", file=sys.stderr)
-    print("=== Environment Variables ===", file=sys.stderr)
-    for key, value in os.environ.items():
-         if 'USER' in key.upper() or 'CONNECT' in key.upper() or 'RSC' in key.upper():
-             print(f"{key}: {value}", file=sys.stderr)
-    print("========================", file=sys.stderr)
+    if not connect_server or not api_key:
+        print("Warning: CONNECT_SERVER or CONNECT_API_KEY not available")
+        return None
     
-    # -----------------------------------------
-    # 1. Modern Posit Connect Headers (v2023+)
-    # -----------------------------------------
-    user_email = request.headers.get('X-RSC-User-Email')
-    if user_email:
-        return user_email
+    try:
+        response = requests.get(
+            f'{connect_server}/__api__/v1/users',
+            headers={'Authorization': f'Key {api_key}'},
+            params={'prefix': username},
+            timeout=10,
+            verify=False 
+        )
+        
+        if response.status_code == 200:
+            users = response.json().get('results', [])
+            for user in users:
+                if user.get('username') == username:
+                    return user.get('email')
+        else:
+            print(f"API returned status {response.status_code}")
+                    
+    except Exception as e:
+        print(f"Error looking up user email: {e}")
     
-    user_name = request.headers.get('X-RSC-User-Name')
-    if user_name:
-        return user_name
-    
-    # Also try with different casing
-    user_email = request.headers.get('X-Rsc-User-Email')
-    if user_email:
-        return user_email
-    
-    # -----------------------------------------
-    # 2. Legacy RStudio Connect Headers
-    # -----------------------------------------
-    legacy_headers = [
-        'RStudio-Connect-Credentials',
-        'Rstudio-Connect-User',
-        'Posit-Connect-User',
-        'Posit-Connect-Email',
-        'RStudio-Connect-Email',
-    ]
-    
-    for header in legacy_headers:
-        value = request.headers.get(header)
-        if value:
-            return value
-    
-    # -----------------------------------------
-    # 3. Proxy Authentication Headers
-    # -----------------------------------------
-    proxy_headers = [
-        'X-Auth-Username',
-        'X-Auth-Email',
-        'X-Forwarded-User',
-        'X-Remote-User',
-        'Remote-User',
-    ]
-    
-    for header in proxy_headers:
-        value = request.headers.get(header)
-        if value:
-            return value
-    
-    # -----------------------------------------
-    # 4. Environment Variables (for some contexts)
-    # -----------------------------------------
-    env_vars = [
-        'RSTUDIO_CONNECT_USER',
-        'CONNECT_USER',
-        'SHINY_USER',
-    ]
-    
-    for var in env_vars:
-        value = os.environ.get(var)
-        if value:
-            return value
-    
-    # -----------------------------------------
-    # 5. Fallback for Local Development Only
-    # -----------------------------------------
-    if os.environ.get('FLASK_DEBUG') or os.environ.get('FLASK_ENV') == 'development':
-        return request.args.get('user', 'dev.user@example.com')
-    
-    # Return None or a clear indicator if no auth found
     return None
+
+
+def get_user_email():
+    """
+    Extract user email from Posit Connect.
+    Parses credentials header and looks up email via API.
+    """
+    username = None
+    
+    # Parse the Rstudio-Connect-Credentials header
+    credentials_header = request.headers.get('Rstudio-Connect-Credentials')
+    if credentials_header:
+        try:
+            credentials = json.loads(credentials_header)
+            username = credentials.get('user')
+        except json.JSONDecodeError:
+            print(f"Failed to parse credentials: {credentials_header}")
+    
+    if not username:
+        # Local development fallback
+        if os.environ.get('FLASK_DEBUG') or app.debug:
+            return request.args.get('user', 'dev.user@gallagherre.com')
+        return None
+    
+    # Look up email via Posit Connect API
+    email = lookup_email_by_username(username)
+    
+    return email if email else username
+
 
 def get_next_monday():
     """Calculate the date of the upcoming Monday in YYYY-MM-DD format."""
     today = datetime.now().date()
-    days_ahead = 0 - today.weekday()  # Monday is 0
-    
-    # If today is Monday or later in the week, get next Monday
+    days_ahead = 0 - today.weekday()
     if days_ahead <= 0:
         days_ahead += 7
-    
     next_monday = today + timedelta(days=days_ahead)
     return next_monday.strftime('%Y-%m-%d')
 
@@ -172,6 +148,10 @@ def get_next_monday():
 def index():
     """Render the main timesheet interface."""
     user_email = get_user_email()
+    
+    if not user_email:
+        return "Unable to identify user. Please ensure you are logged in.", 401
+    
     default_date = get_next_monday()
     projects = load_active_projects()
     
@@ -192,13 +172,9 @@ def serve_logo():
 
 @app.route('/api/get_history')
 def get_history():
-    """
-    Retrieve the most recent week's timesheet entries for the authenticated user.
-    Used for the "Copy Last Week" feature.
-    """
+    """Retrieve the most recent week's timesheet entries for the user."""
     user_email = get_user_email()
     
-    # Find the most recent week_commencing date for this user
     most_recent = db.session.query(TimesheetEntry.week_commencing)\
         .filter_by(user_email=user_email)\
         .order_by(TimesheetEntry.week_commencing.desc())\
@@ -207,13 +183,11 @@ def get_history():
     if not most_recent:
         return jsonify([])
     
-    # Get all entries from that week
     entries = TimesheetEntry.query.filter_by(
         user_email=user_email,
         week_commencing=most_recent[0]
     ).all()
     
-    # Format response
     result = [
         {
             'project': entry.project_name,
@@ -228,10 +202,7 @@ def get_history():
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    """
-    Submit timesheet entries for a specific week.
-    Overwrites any existing entries for that user/week combination.
-    """
+    """Submit timesheet entries for a specific week."""
     user_email = get_user_email()
     data = request.get_json()
     
@@ -255,7 +226,6 @@ def submit():
             days = row.get('days')
             notes = row.get('notes', '').strip()
             
-            # Only insert if project and days are provided
             if project and days is not None and days > 0:
                 entry = TimesheetEntry(
                     user_email=user_email,
@@ -277,13 +247,14 @@ def submit():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
 def init_db():
     """Initialize the database tables."""
     with app.app_context():
         db.create_all()
         print("Database initialized successfully.")
 
+
 if __name__ == '__main__':
     init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)
-
