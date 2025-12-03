@@ -152,11 +152,7 @@
             gap: 0;
         }
         
-        /* Rows container */
-        .rows-container {
-            position: relative;
-            overflow: visible;
-        }
+        /* Rows container - styles moved to bottom of CSS */
         
         /* Custom Dropdown */
         .custom-dropdown {
@@ -166,17 +162,17 @@
             right: 0;
             width: 100%;
             background: white;
-            border-radius: 12px;
-            max-height: 80vh;
+            border-radius: 2px;
+            max-height: 400px;
             overflow-y: auto;
             overflow-x: hidden;
-            z-index: 1000;
+            z-index: 9999;
             box-shadow: 
-                0 4px 6px rgba(0, 31, 63, 0.04),
-                0 10px 20px rgba(0, 31, 63, 0.08),
-                0 20px 40px rgba(0, 31, 63, 0.12);
-            border: 1px solid rgba(0, 31, 63, 0.08);
-            animation: dropdownSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+                0 4px 6px rgba(0, 31, 63, 0.08),
+                0 10px 20px rgba(0, 31, 63, 0.12),
+                0 20px 40px rgba(0, 31, 63, 0.18);
+            border: 1px solid rgba(0, 31, 63, 0.12);
+            animation: dropdownSlide 0.2s ;
             backdrop-filter: blur(20px);
             /* Prevent layout shift */
             contain: layout style paint;
@@ -200,7 +196,7 @@
             font-weight: 500;
             color: #001F3F;
             cursor: pointer;
-            border-bottom: 1px solid rgba(0, 31, 63, 0.04);
+            border-bottom: 1px solid rgba(0, 31, 63, 0.12);
             transition: all var(--transition-fast);
             display: flex;
             align-items: center;
@@ -222,8 +218,9 @@
         
         .dropdown-item:hover,
         .dropdown-item.highlighted {
-            background: linear-gradient(90deg, rgba(0, 120, 212, 0.06) 0%, rgba(0, 163, 224, 0.03) 100%);
+            background: linear-gradient(90deg, rgba(0, 120, 212, 0.15) 0%, rgba(0, 163, 224, 0.08) 100%);
             padding-left: 22px;
+            border-left: 3px solid #0078D4;
         }
         
         .dropdown-item.selected {
@@ -402,6 +399,8 @@
         .main-card {
             box-shadow: var(--shadow-xl);
             border-radius: 20px;
+            position: relative;
+            z-index: 10;
             overflow: visible;
             border: 1px solid rgba(255, 255, 255, 0.8);
             background: rgba(255, 255, 255, 0.95);
@@ -606,6 +605,8 @@
             border: 1px solid rgba(0, 31, 63, 0.08);
             box-shadow: var(--shadow-lg);
             border-radius: 16px;
+            position: relative;
+            z-index: 1;
         }
         
         .activity-cell {
@@ -712,6 +713,31 @@
             background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%);
             color: #059669;
             border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        
+        /* Activity Map Month Labels */
+        .activity-months {
+            display: flex;
+            gap: 2px;
+            margin-left: 64px; /* w-14 (56px) + mr-2 (8px) to align with cells */
+            margin-bottom: 4px;
+        }
+        
+        .month-label {
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        /* Rows container minimum height for 5 rows */
+        .rows-container {
+            position: relative;
+            overflow: visible;
+            min-height: calc(var(--row-height) * 5);
+            background: white;
+            z-index: 100;
         }
     </style>
 </head>
@@ -866,6 +892,11 @@
             <div class="flex items-center gap-6 ml-72">
                 <!-- Grid -->
                 <div class="space-y-1.5">
+                    <!-- Month Labels Row -->
+                    <div id="monthLabelsRow" class="activity-months">
+                        <!-- Month labels injected by JS -->
+                    </div>
+                    
                     <!-- Forecasts Row (Mondays) -->
                     <div class="flex items-center">
                         <span class="w-14 text-xs text-gray-400 font-medium text-right mr-2 flex-shrink-0">Forecast</span>
@@ -939,6 +970,51 @@
             
             const forecastRow = document.getElementById('forecastRow');
             const actualRow = document.getElementById('actualRow');
+            const monthLabelsRow = document.getElementById('monthLabelsRow');
+            
+            // Generate month labels based on forecast dates
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            // Cell is 15px wide, gap between cells is 2px (gap-0.5 = 0.125rem = 2px)
+            const cellSize = 15;
+            const gapSize = 2;
+            
+            // Calculate month spans
+            let monthSpans = [];
+            let currentMonth = -1;
+            let currentMonthStart = 0;
+            
+            activityMapData.forecasts.forEach((item, index) => {
+                const date = new Date(item.date + 'T00:00:00');
+                const month = date.getMonth();
+                
+                if (month !== currentMonth) {
+                    if (currentMonth !== -1) {
+                        monthSpans.push({
+                            month: currentMonth,
+                            startIndex: currentMonthStart,
+                            endIndex: index - 1
+                        });
+                    }
+                    currentMonth = month;
+                    currentMonthStart = index;
+                }
+            });
+            
+            // Add the last month span
+            if (currentMonth !== -1) {
+                monthSpans.push({
+                    month: currentMonth,
+                    startIndex: currentMonthStart,
+                    endIndex: activityMapData.forecasts.length - 1
+                });
+            }
+            
+            // Render month labels - width = (count * cellSize) + ((count - 1) * gapSize)
+            monthLabelsRow.innerHTML = monthSpans.map(span => {
+                const count = span.endIndex - span.startIndex + 1;
+                const width = (count * cellSize) + ((count - 1) * gapSize);
+                return `<span class="month-label" style="width: ${width}px;">${monthNames[span.month]}</span>`;
+            }).join('');
             
             // Render Forecast cells (Mondays)
             forecastRow.innerHTML = activityMapData.forecasts.map(item => `
