@@ -31,16 +31,16 @@ class TimesheetEntry(db.Model):
     """Stores individual timesheet entries for users."""
     __tablename__ = 'timesheet_entry'
     
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_email = db.Column(db.String(255), nullable=False, index=True)
-    week_commencing = db.Column(db.String(10), nullable=False, index=True)
-    project_name = db.Column(db.String(255), nullable=False)
-    days = db.Column(db.Float, nullable=False)
-    notes = db.Column(db.Text, nullable=True)
-    submitted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID, may need to modify this
+    survey_id = db.Column(db.String(50), nullable=False, index=True)  # Survey ID: "YYYY-MM-DD (Forecast)"
+    team_member = db.Column(db.String(255), nullable=False, index=True)  # Team Member: email
+    assignment = db.Column(db.String(255), nullable=False)  # Assignment: Project name
+    days_allocated = db.Column(db.Float, nullable=False)  # Days Allocated
+    notes = db.Column(db.Text, nullable=True)  # Notes
+    modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)  # Modified timestamp
     
     def __repr__(self):
-        return f'<TimesheetEntry {self.user_email} - {self.week_commencing} - {self.project_name}>'
+        return f'<TimesheetEntry {self.team_member} - {self.survey_id} - {self.assignment}>'
 
 
 # ============================
@@ -56,9 +56,14 @@ def load_active_projects():
     
     try:
         df = pd.read_csv(csv_path)
-        active_df = df[df['Active'] == True]
-        projects = active_df['ProjectName'].tolist()
-        return sorted(projects)
+        # Filter active projects
+        active_df = df[(df['Active'] == True) | (df['Active'] == 'True')]
+        # Index to numeric
+        active_df['Index'] = pd.to_numeric(active_df['Index'], errors='coerce')
+        # by Index 
+        active_df = active_df.sort_values('Index', ascending=True)
+        projects = active_df['Title'].tolist()
+        return projects
     except Exception as e:
         print(f"Error loading projects.csv: {e}")
         return []
@@ -174,26 +179,26 @@ def serve_logo():
 
 @app.route('/api/get_history')
 def get_history():
-    """Retrieve the most recent week's timesheet entries for the user."""
+    """Retrieve the most recent timesheet entries for the user."""
     user_email = get_user_email()
     
-    most_recent = db.session.query(TimesheetEntry.week_commencing)\
-        .filter_by(user_email=user_email)\
-        .order_by(TimesheetEntry.week_commencing.desc())\
+    most_recent = db.session.query(TimesheetEntry.survey_id)\
+        .filter_by(team_member=user_email)\
+        .order_by(TimesheetEntry.modified.desc())\
         .first()
     
     if not most_recent:
         return jsonify([])
     
     entries = TimesheetEntry.query.filter_by(
-        user_email=user_email,
-        week_commencing=most_recent[0]
+        team_member=user_email,
+        survey_id=most_recent[0]
     ).all()
     
     result = [
         {
-            'project': entry.project_name,
-            'days': entry.days,
+            'project': entry.assignment,
+            'days': entry.days_allocated,
             'notes': entry.notes or ''
         }
         for entry in entries
@@ -211,18 +216,23 @@ def submit():
     if not data:
         return jsonify({'error': 'No data provided'}), 400
     
-    week_commencing = data.get('date')
+    selected_date = data.get('date')  # Date from calendar
     rows = data.get('rows', [])
     
-    if not week_commencing:
-        return jsonify({'error': 'Week commencing date is required'}), 400
+    if not selected_date:
+        return jsonify({'error': 'Date is required'}), 400
+    
+    # Format Survey ID as "YYYY-MM-DD (Forecast)"
+    survey_id = f"{selected_date} (Forecast)"
     
     try:
+        # Delete existing entries for this user and survey_id
         TimesheetEntry.query.filter_by(
-            user_email=user_email,
-            week_commencing=week_commencing
+            team_member=user_email,
+            survey_id=survey_id
         ).delete()
         
+        # Add new entries
         for row in rows:
             project = row.get('project', '').strip()
             days = row.get('days')
@@ -230,11 +240,11 @@ def submit():
             
             if project and days is not None and days > 0:
                 entry = TimesheetEntry(
-                    user_email=user_email,
-                    week_commencing=week_commencing,
-                    project_name=project,
-                    days=float(days),
-                    notes=notes
+                    survey_id=survey_id,
+                    team_member=user_email,
+                    assignment=project,
+                    days_allocated=float(days),
+                    notes=notes if notes else None
                 )
                 db.session.add(entry)
         
@@ -242,7 +252,7 @@ def submit():
         
         return jsonify({
             'success': True,
-            'message': f'Timesheet submitted successfully for week of {week_commencing}'
+            'message': f'Timesheet submitted successfully for {survey_id}'
         })
     
     except Exception as e:
