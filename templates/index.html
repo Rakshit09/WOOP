@@ -769,13 +769,13 @@
                     </div>
 
                     <!-- User & Date Info -->
-                    <div class="flex flex-col gap-4 ml-8">
-                        <div class="flex items-center">
-                            <span class="font-semibold text-brand-dark/60 w-40 text-right mr-4 text-sm uppercase tracking-wide">Team Member</span>
-                            <span class="text-brand-dark font-semibold text-base">{{ user_email }}</span>
+                    <div class="flex flex-wrap items-center gap-x-10 gap-y-3 ml-8">
+                        <div class="flex items-center flex-shrink-0">
+                            <span class="font-semibold text-brand-dark/60 text-right mr-4 text-sm uppercase tracking-wide whitespace-nowrap">Team Member</span>
+                            <span class="text-brand-dark font-semibold text-base whitespace-nowrap">{{ user_email }}</span>
                         </div>
-                        <div class="flex items-center">
-                            <label for="weekDate" class="font-semibold text-brand-dark/60 w-40 text-right mr-4 text-sm uppercase tracking-wide">Week Commencing</label>
+                        <div class="flex items-center flex-shrink-0">
+                            <label for="weekDate" class="font-semibold text-brand-dark/60 text-right mr-4 text-sm uppercase tracking-wide whitespace-nowrap">Week Commencing</label>
                             <div class="relative flex items-center gap-3">
                                 <select 
                                     id="weekDate" 
