@@ -175,8 +175,8 @@ def load_active_projects():
     
     try:
         df = pd.read_csv(csv_path)
-        active_df = df[(df['Active'] == True) | (df['Active'] == 'True')]
-        active_df['Index'] = pd.to_numeric(active_df['Index'], errors='coerce')
+        active_df = df[(df['Active'] == True) | (df['Active'] == 'True')].copy()
+        active_df.loc[:, 'Index'] = pd.to_numeric(active_df['Index'], errors='coerce')
         active_df = active_df.sort_values('Index', ascending=True)
         projects = active_df['Title'].tolist()
         return projects
@@ -230,7 +230,7 @@ def get_user_email():
     
     if not username:
         if os.environ.get('FLASK_DEBUG') or app.debug:
-            return request.args.get('user', 'dev.user@gallagherre.com')
+            return request.args.get('user', 'dev.user3@gallagherre.com')
         return None
     
     email = lookup_email_by_username(username)
@@ -255,6 +255,51 @@ def get_user_name(email):
     return email  
 
 
+def get_direct_reports(email):
+    """Get direct reports for a user from EMEA_team_list.csv based on their email."""
+    csv_path = os.path.join(os.path.dirname(__file__), 'EMEA_team_list.csv')
+    
+    if not os.path.exists(csv_path):
+        return []
+    
+    try:
+        df = pd.read_csv(csv_path)
+        
+        # Check if Reports column exists
+        if 'Reports' not in df.columns:
+            return []
+        
+        match = df[df['Email'].str.lower() == email.lower()]
+        
+        if match.empty:
+            return []
+        
+        # Access the Reports column value directly
+        reports_field = match.iloc[0]['Reports']
+        
+        # Handle NaN/empty values
+        if pd.isna(reports_field) or not reports_field or str(reports_field).strip() == '':
+            return []
+        
+        # Split by comma and trim whitespace
+        report_names = [name.strip() for name in str(reports_field).split(',') if name.strip()]
+        
+        # Look up each report's email by their Title (name)
+        direct_reports = []
+        for name in report_names:
+            report_match = df[df['Title'].str.lower() == name.lower()]
+            if not report_match.empty:
+                direct_reports.append({
+                    'name': report_match.iloc[0]['Title'],
+                    'email': report_match.iloc[0]['Email']
+                })
+        
+        return direct_reports
+        
+    except Exception as e:
+        return []
+
+
 # main Routes
 @app.route('/')
 def index():
@@ -267,13 +312,15 @@ def index():
     user_name = get_user_name(user_email)
     default_date = get_next_monday()
     projects = load_active_projects()
+    direct_reports = get_direct_reports(user_email)
     
     return render_template(
         'index.html',
         user_email=user_email,
         user_name=user_name,
         default_date=default_date,
-        projects=projects
+        projects=projects,
+        direct_reports=direct_reports
     )
 
 
@@ -337,6 +384,73 @@ def get_activity_map():
         'actuals': actual_map,
         'next_monday': get_next_monday(),
         'last_friday': get_last_friday()
+    })
+
+
+@app.route('/api/team_activity_map')
+def get_team_activity_map():
+    """Get activity map data for a specific team member (for manager view)."""
+    user_email = get_user_email()
+    if not user_email:
+        return jsonify({'error': 'User not authenticated'}), 401
+    
+    # Get the requested team member email from query params
+    member_email = request.args.get('member_email')
+    if not member_email:
+        return jsonify({'error': 'Member email required'}), 400
+    
+    # Verify that the requesting user is the manager of this team member
+    direct_reports = get_direct_reports(user_email)
+    is_authorized = any(r['email'].lower() == member_email.lower() for r in direct_reports)
+    
+    if not is_authorized:
+        return jsonify({'error': 'Unauthorized to view this team member'}), 403
+    
+    mondays = get_mondays_range()
+    fridays = get_fridays_range()
+    
+    # Get all forecast entries for the team member
+    forecast_entries = ForecastEntry.query.filter_by(team_member=member_email).all()
+    forecast_dates = set()
+    for entry in forecast_entries:
+        date_part = entry.survey_id.split(' ')[0]
+        forecast_dates.add(date_part)
+    
+    # Get all actual entries for the team member
+    current_entries = CurrentEntry.query.filter_by(team_member=member_email).all()
+    current_dates = set()
+    for entry in current_entries:
+        date_part = entry.survey_id.split(' ')[0]
+        current_dates.add(date_part)
+    
+    # Build activity map data
+    forecast_map = []
+    for monday in mondays:
+        has_entry = monday in forecast_dates
+        status = get_date_status(monday, 'forecast', has_entry)
+        forecast_map.append({
+            'date': monday,
+            'status': status,
+            'has_entry': has_entry,
+            'label': datetime.strptime(monday, '%Y-%m-%d').strftime('%b %d')
+        })
+    
+    actual_map = []
+    for friday in fridays:
+        has_entry = friday in current_dates
+        status = get_date_status(friday, 'actual', has_entry)
+        actual_map.append({
+            'date': friday,
+            'status': status,
+            'has_entry': has_entry,
+            'label': datetime.strptime(friday, '%Y-%m-%d').strftime('%b %d')
+        })
+    
+    return jsonify({
+        'forecasts': forecast_map,
+        'actuals': actual_map,
+        'member_email': member_email,
+        'member_name': get_user_name(member_email)
     })
 
 

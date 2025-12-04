@@ -888,6 +888,33 @@
             background: white;
             z-index: 100;
         }
+        
+        /* Team Activity Read-only Cells */
+        .team-cell-readonly {
+            cursor: default !important;
+            pointer-events: auto;
+        }
+        
+        .team-cell-readonly:hover {
+            transform: scale(1.15) !important;
+        }
+        
+        /* Team Member Activity Section Styling */
+        .team-member-activity {
+            transition: all var(--transition-smooth);
+        }
+        
+        .team-member-activity:hover {
+            background: rgba(0, 120, 212, 0.02);
+            border-radius: 12px;
+            margin: -8px;
+            padding: 8px;
+            padding-top: 12px;
+        }
+        
+        .team-member-activity:first-child:hover {
+            padding-top: 8px;
+        }
     </style>
 </head>
 <body class="min-h-screen py-8 px-6">
@@ -1091,6 +1118,69 @@
                 </div>
             </div>
         </div>
+
+        {% if direct_reports and direct_reports|length > 0 %}
+        <!-- Team Activity Overview Section -->
+        <div class="activity-map-card mt-6 p-5">
+            <div class="flex items-start gap-4 mb-4">
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-brand-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <span class="font-semibold text-brand-dark text-sm">Team Activity Overview</span>
+                    <span class="text-xs text-gray-400">({{ direct_reports|length }} Direct Report{% if direct_reports|length > 1 %}s{% endif %})</span>
+                </div>
+            </div>
+            
+            <!-- Team Members Activity Maps -->
+            <div id="teamActivityContainer" class="space-y-6">
+                <!-- Team member activity maps will be injected by JS -->
+                {% for report in direct_reports %}
+                <div class="team-member-activity border-t border-gray-100 pt-4 first:border-t-0 first:pt-0" data-email="{{ report.email }}" data-name="{{ report.name }}">
+                    <div class="flex items-center gap-2 mb-3">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-brand-blue to-brand-accent flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">{{ report.name[:2]|upper }}</span>
+                        </div>
+                        <span class="font-medium text-brand-dark text-sm">{{ report.name }}</span>
+                        <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Read-only</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-6 ml-72">
+                        <!-- Grid -->
+                        <div class="space-y-1.5">
+                            <!-- Month Labels Row -->
+                            <div class="team-month-labels activity-months">
+                                <!-- Month labels injected by JS -->
+                            </div>
+                            
+                            <!-- Forecasts Row (Mondays) -->
+                            <div class="flex items-center">
+                                <span class="w-14 text-xs text-gray-400 font-medium text-right mr-2 flex-shrink-0">Forecast</span>
+                                <div class="team-forecast-row flex gap-0.5 flex-wrap">
+                                    <!-- Cells injected by JS -->
+                                </div>
+                            </div>
+                            
+                            <!-- Actuals Row (Fridays) -->
+                            <div class="flex items-center">
+                                <span class="w-14 text-xs text-gray-400 font-medium text-right mr-2 flex-shrink-0">Actual</span>
+                                <div class="team-actual-row flex gap-0.5 flex-wrap">
+                                    <!-- Cells injected by JS -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- % Filled Stats -->
+                        <div class="team-fill-stats ml-24 text-center">
+                            <div class="text-2xl font-bold text-brand-dark team-fill-percent">--%</div>
+                            <div class="text-xs text-gray-400">Filled</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
     </div>
 
@@ -1854,13 +1944,124 @@
             }
         });
 
+        // Team Activity Map Functions
+        const directReports = {{ direct_reports | tojson | default('[]', true) }};
+
+        async function loadTeamActivityMaps() {
+            if (!directReports || directReports.length === 0) return;
+            
+            // Load activity maps for each team member
+            for (const report of directReports) {
+                try {
+                    const response = await fetch(`/api/team_activity_map?member_email=${encodeURIComponent(report.email)}`);
+                    if (!response.ok) {
+                        console.error(`Failed to load activity map for ${report.name}`);
+                        continue;
+                    }
+                    
+                    const data = await response.json();
+                    renderTeamMemberActivityMap(report.email, data);
+                } catch (error) {
+                    console.error(`Error loading activity map for ${report.name}:`, error);
+                }
+            }
+        }
+
+        function renderTeamMemberActivityMap(email, data) {
+            const memberContainer = document.querySelector(`.team-member-activity[data-email="${email}"]`);
+            if (!memberContainer) return;
+            
+            const forecastRow = memberContainer.querySelector('.team-forecast-row');
+            const actualRow = memberContainer.querySelector('.team-actual-row');
+            const monthLabelsRow = memberContainer.querySelector('.team-month-labels');
+            
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const cellSize = 15;
+            const gapSize = 2;
+            
+            // Calculate month spans
+            let monthSpans = [];
+            let currentMonth = -1;
+            let currentMonthStart = 0;
+            
+            data.forecasts.forEach((item, index) => {
+                const date = new Date(item.date + 'T00:00:00');
+                const month = date.getMonth();
+                
+                if (month !== currentMonth) {
+                    if (currentMonth !== -1) {
+                        monthSpans.push({
+                            month: currentMonth,
+                            startIndex: currentMonthStart,
+                            endIndex: index - 1
+                        });
+                    }
+                    currentMonth = month;
+                    currentMonthStart = index;
+                }
+            });
+            
+            // Add the last month span
+            if (currentMonth !== -1) {
+                monthSpans.push({
+                    month: currentMonth,
+                    startIndex: currentMonthStart,
+                    endIndex: data.forecasts.length - 1
+                });
+            }
+            
+            // Render month labels
+            monthLabelsRow.innerHTML = monthSpans.map(span => {
+                const count = span.endIndex - span.startIndex + 1;
+                const width = (count * cellSize) + ((count - 1) * gapSize);
+                return `<span class="month-label" style="width: ${width}px;">${monthNames[span.month]}</span>`;
+            }).join('');
+            
+            // Render Forecast cells (read-only - no onclick)
+            forecastRow.innerHTML = data.forecasts.map(item => `
+                <div 
+                    class="activity-cell cell-${item.status} team-cell-readonly" 
+                    data-date="${item.date}"
+                    data-type="forecast"
+                    title="${formatDateLabel(item.date)} - ${getStatusLabel(item.status, 'forecast')}"
+                >
+                    <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status, 'forecast')}</span>
+                </div>
+            `).join('');
+            
+            // Render Actual cells (read-only - no onclick)
+            actualRow.innerHTML = data.actuals.map(item => `
+                <div 
+                    class="activity-cell cell-${item.status} team-cell-readonly" 
+                    data-date="${item.date}"
+                    data-type="actual"
+                    title="${formatDateLabel(item.date)} - ${getStatusLabel(item.status, 'actual')}"
+                >
+                    <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status, 'actual')}</span>
+                </div>
+            `).join('');
+            
+            // Calculate % filled (actuals: green / (green + red))
+            const greenActuals = data.actuals.filter(a => a.status === 'green').length;
+            const redActuals = data.actuals.filter(a => a.status === 'red').length;
+            const totalApplicable = greenActuals + redActuals;
+            const fillPercent = totalApplicable > 0 ? Math.round((greenActuals / totalApplicable) * 100) : 100;
+            
+            // Update % filled display
+            const fillPercentEl = memberContainer.querySelector('.team-fill-percent');
+            if (fillPercentEl) {
+                fillPercentEl.textContent = `${fillPercent}%`;
+                fillPercentEl.style.color = fillPercent >= 90 ? '#10b981' : fillPercent >= 70 ? '#f97316' : '#ef4444';
+            }
+        }
+
         // initialization
         document.addEventListener('DOMContentLoaded', async () => {
             // add initial row
             addNewRow();
             
-            // load activity map and week options
-            await Promise.all([loadActivityMap(), loadOutstandingItems()]);
+            // load activity map, week options, and team activity maps
+            await Promise.all([loadActivityMap(), loadOutstandingItems(), loadTeamActivityMaps()]);
         });
 
     </script>
