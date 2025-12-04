@@ -15,7 +15,7 @@ import os
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 app = Flask(__name__)
 
-# Configuration - Dual Database Binds
+# app config for deployment
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///timesheet_forecast.db'  # Default/fallback
 app.config['SQLALCHEMY_BINDS'] = {
     'forecast': 'sqlite:///timesheet_forecast.db',
@@ -23,20 +23,18 @@ app.config['SQLALCHEMY_BINDS'] = {
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize database
+# database init
 db = SQLAlchemy(app)
 
 
-# ============================
-# Database Models
-# ============================
+# database models
 class ForecastEntry(db.Model):
-    """Stores forecast timesheet entries (Mondays - planning next week)."""
+    """Stores forecast timesheet entries"""
     __tablename__ = 'forecast_entry'
     __bind_key__ = 'forecast'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    survey_id = db.Column(db.String(50), nullable=False, index=True)  # "YYYY-MM-DD (Forecast)"
+    survey_id = db.Column(db.String(50), nullable=False, index=True)  # "YYYY-MM-DD style forecast"
     team_member = db.Column(db.String(255), nullable=False, index=True)
     assignment = db.Column(db.String(255), nullable=False)
     days_allocated = db.Column(db.Float, nullable=False)
@@ -48,7 +46,7 @@ class ForecastEntry(db.Model):
 
 
 class CurrentEntry(db.Model):
-    """Stores current/actual timesheet entries (Fridays - backcasting confirmed work)."""
+    """Stores actual timesheet entries"""
     __tablename__ = 'current_entry'
     __bind_key__ = 'current'
     
@@ -64,12 +62,10 @@ class CurrentEntry(db.Model):
         return f'<CurrentEntry {self.team_member} - {self.survey_id} - {self.assignment}>'
 
 
-# ============================
-# Date Utilities
-# ============================
+# date utils
 def get_next_monday():
-    """Calculate the date of the upcoming Monday in YYYY-MM-DD format.
-    If today is Monday, returns today. Otherwise returns next Monday.
+    """Calculate the date of the upcoming Monday in YYYY-MM-DD style.
+    If today is Monday, return today. else return next monday.
     """
     today = datetime.now().date()
     days_until_monday = (7 - today.weekday()) % 7
@@ -80,7 +76,7 @@ def get_next_monday():
 
 
 def get_last_friday():
-    """Calculate the date of the most recent Friday."""
+    """ get the date of the most recent friday."""
     today = datetime.now().date()
     days_since_friday = (today.weekday() - 4) % 7
     if days_since_friday == 0 and today.weekday() != 4:
@@ -90,11 +86,11 @@ def get_last_friday():
 
 
 def get_mondays_range(weeks_back=8, weeks_forward=2):
-    """Get list of Mondays for the activity map (from Jan 1 of current year to end of year)."""
+    """Get list of mondays for the activity map (full year)."""
     today = datetime.now().date()
     year_start = datetime(today.year, 1, 1).date()
     
-    # Find first Monday of the year (or first Monday after Jan 1)
+    # find first monday of the year
     days_until_monday = (7 - year_start.weekday()) % 7
     if year_start.weekday() == 0:
         first_monday = year_start
@@ -113,11 +109,11 @@ def get_mondays_range(weeks_back=8, weeks_forward=2):
 
 
 def get_fridays_range(weeks_back=8, weeks_forward=2):
-    """Get list of Fridays for the activity map (from Jan 1 of current year to end of year)."""
+    """Get list of fridays for the activity map (full year)."""
     today = datetime.now().date()
     year_start = datetime(today.year, 1, 1).date()
     
-    # Find first Friday of the year
+    # find first friday of the year
     days_until_friday = (4 - year_start.weekday()) % 7
     if year_start.weekday() == 4:
         first_friday = year_start
@@ -137,13 +133,13 @@ def get_fridays_range(weeks_back=8, weeks_forward=2):
 
 def get_date_status(date_str, entry_type, has_entry):
     """
-    Determine the status of a date cell for the activity map.
+    get the status of a cell in the activity map.
     
-    Returns: 'green', 'red', 'blue', 'gray'
-    - Green: Entry exists in DB
-    - Red: Missing Actual (past Friday without entry)
-    - Blue: Next Forecast (upcoming Monday for input)
-    - Gray: Expired Forecast or Future Actual (disabled)
+    Out: 'green', 'red', 'blue', 'gray'
+    - Green: entry exists in DB
+    - Red:missing actual (past Friday without entry)
+    - Blue:next forecast (upcoming Monday for input)
+    - Gray: expired forecast or future actual (disabled)
     """
     today = datetime.now().date()
     date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -152,26 +148,23 @@ def get_date_status(date_str, entry_type, has_entry):
         return 'green'
     
     if entry_type == 'forecast':
-        # Forecasts are for Mondays
         next_monday = datetime.strptime(get_next_monday(), '%Y-%m-%d').date()
         if date_obj == next_monday:
-            return 'blue'  # Open for input
+            return 'blue' 
         elif date_obj < today:
-            return 'gray'  # Expired - no backfill allowed
+            return 'gray'
         else:
-            return 'gray'  # Future - not yet available
+            return 'gray'
     
     else:  # actuals
-        # Actuals are for Fridays
+       
         if date_obj > today:
-            return 'gray'  # Future - locked
+            return 'gray' 
         else:
-            return 'red'  # Past Friday without entry - Missing!
+            return 'red'
 
 
-# ============================
-# Load Projects from CSV
-# ============================
+# load projects from csv
 def load_active_projects():
     """Load active projects from projects.csv file."""
     csv_path = os.path.join(os.path.dirname(__file__), 'projects.csv')
@@ -192,12 +185,10 @@ def load_active_projects():
         return []
 
 
-# ============================
-# User Authentication
-# ============================
+# user auth - will try X-Auth, Posit auth, otherwise fallback example name
 @lru_cache(maxsize=100)
 def lookup_email_by_username(username):
-    """Fetch user email from Posit Connect API."""
+    """ user email from Posit Connect """
     connect_server = os.environ.get('CONNECT_SERVER', '').rstrip('/')
     api_key = os.environ.get('CONNECT_API_KEY', '')
     
@@ -226,7 +217,7 @@ def lookup_email_by_username(username):
 
 
 def get_user_email():
-    """Extract user email from Posit Connect."""
+    """ user email from Posit Connect."""
     username = None
     
     credentials_header = request.headers.get('Rstudio-Connect-Credentials')
@@ -246,23 +237,41 @@ def get_user_email():
     return email if email else username
 
 
-# ============================
-# Routes
-# ============================
+def get_user_name(email):
+    """find user's name from EMEA_team_list.csv from on email."""
+    csv_path = os.path.join(os.path.dirname(__file__), 'EMEA_team_list.csv')
+    
+    if not os.path.exists(csv_path):
+        return email  # Fallback
+    
+    try:
+        df = pd.read_csv(csv_path)
+        match = df[df['Email'].str.lower() == email.lower()]
+        if not match.empty:
+            return match.iloc[0]['Title']
+    except Exception as e:
+        print(f"Error looking up user name: {e}")
+    
+    return email  
+
+
+# main Routes
 @app.route('/')
 def index():
-    """Render the main timesheet interface with Activity Map."""
+    """disp main timesheet interface with activity map."""
     user_email = get_user_email()
     
     if not user_email:
-        return "Unable to identify user. Please ensure you are logged in.", 401
+        return "Unable to identify user. Please ensure you are logged in.", 401 # should be 420 instead?
     
+    user_name = get_user_name(user_email)
     default_date = get_next_monday()
     projects = load_active_projects()
     
     return render_template(
         'index.html',
         user_email=user_email,
+        user_name=user_name,
         default_date=default_date,
         projects=projects
     )
@@ -270,17 +279,14 @@ def index():
 
 @app.route('/templates/logo.png')
 def serve_logo():
-    """Serve the logo image from the templates folder."""
+    """get logo image"""
     templates_dir = os.path.join(os.path.dirname(__file__), 'templates')
     return send_from_directory(templates_dir, 'logo.png')
 
 
 @app.route('/api/activity_map')
 def get_activity_map():
-    """
-    Get activity map data for the GitHub-style heatmap.
-    Returns status for each Monday (forecast) and Friday (actual) in the range.
-    """
+    """activity map data that returns status for each Monday and friday"""
     user_email = get_user_email()
     if not user_email:
         return jsonify({'error': 'User not authenticated'}), 401
@@ -288,22 +294,22 @@ def get_activity_map():
     mondays = get_mondays_range()
     fridays = get_fridays_range()
     
-    # Get all forecast entries for this user
+    # get all forecast entries
     forecast_entries = ForecastEntry.query.filter_by(team_member=user_email).all()
     forecast_dates = set()
     for entry in forecast_entries:
-        # Extract date from survey_id "YYYY-MM-DD (Forecast)"
+        # extract date "YYYY-MM-DD (Forecast)"
         date_part = entry.survey_id.split(' ')[0]
         forecast_dates.add(date_part)
     
-    # Get all current/actual entries for this user
+    # get all actual entries
     current_entries = CurrentEntry.query.filter_by(team_member=user_email).all()
     current_dates = set()
     for entry in current_entries:
         date_part = entry.survey_id.split(' ')[0]
         current_dates.add(date_part)
     
-    # Build activity map data
+    # build activity map data
     forecast_map = []
     for monday in mondays:
         has_entry = monday in forecast_dates
@@ -337,11 +343,10 @@ def get_activity_map():
 @app.route('/api/outstanding_items')
 def get_outstanding_items():
     """
-    Get outstanding items for the Week Commencing dropdown.
-    Returns:
-    - Past Fridays that are Missing (no actual entry) - shown as week commencing (Monday)
-    - The Next Monday (for forecast)
-    Does NOT include completed weeks or expired forecasts.
+    get outstanding items.
+    Out: Past Fridays that are Missing - shown as week commencing (Monday)
+    2. The Next Monday (for forecast)
+    note--does not include completed weeksand expired forecasts.
     """
     user_email = get_user_email()
     if not user_email:
@@ -350,38 +355,37 @@ def get_outstanding_items():
     today = datetime.now().date()
     items = []
     
-    # Get existing actual entries
+    # Get existing entries
     current_entries = CurrentEntry.query.filter_by(team_member=user_email).all()
     current_dates = set()
     for entry in current_entries:
         date_part = entry.survey_id.split(' ')[0]
         current_dates.add(date_part)
     
-    # Check past Fridays (last 8 weeks) for missing actuals
+    # Check past Fridaysfor missing actuals
     fridays = get_fridays_range(weeks_back=8, weeks_forward=0)
     for friday in fridays:
         friday_date = datetime.strptime(friday, '%Y-%m-%d').date()
         if friday_date <= today and friday not in current_dates:
-            # Calculate week commencing (Monday of that week = Friday - 4 days)
             week_commencing_date = friday_date - timedelta(days=4)
             week_commencing = week_commencing_date.strftime('%Y-%m-%d')
             week_commencing_label = week_commencing_date.strftime('%b %d, %Y')
             
             items.append({
-                'date': friday,  # Keep Friday for backend submission
-                'week_commencing': week_commencing,  # Monday date for display
+                'date': friday,  
+                'week_commencing': week_commencing,  
                 'week_commencing_label': week_commencing_label,
                 'type': 'actual',
                 'label': f"Week commencing {week_commencing_label} - Missing Actuals",
                 'status': 'missing',
-                'priority': 1  # Higher priority for missing actuals
+                'priority': 1  #  priority for missing actuals
             })
     
-    # Add next Monday for forecast
+    # add next monday for forecast
     next_monday = get_next_monday()
     next_monday_date = datetime.strptime(next_monday, '%Y-%m-%d').date()
     
-    # Check if forecast already exists for next Monday
+    # check if forecast already exists for next monday
     forecast_entries = ForecastEntry.query.filter_by(team_member=user_email).all()
     forecast_dates = set()
     for entry in forecast_entries:
@@ -392,7 +396,7 @@ def get_outstanding_items():
         week_commencing_label = next_monday_date.strftime('%b %d, %Y')
         items.append({
             'date': next_monday,
-            'week_commencing': next_monday,  # Monday is already week commencing for forecast
+            'week_commencing': next_monday, 
             'week_commencing_label': week_commencing_label,
             'type': 'forecast',
             'label': f"Week commencing {week_commencing_label} - Forecast",
@@ -400,7 +404,7 @@ def get_outstanding_items():
             'priority': 2
         })
     
-    # Sort by priority (missing actuals first, then forecast)
+    #  priority sort(missing actuals first, then forecast)
     items.sort(key=lambda x: (x['priority'], x['date']))
     
     return jsonify(items)
@@ -408,9 +412,7 @@ def get_outstanding_items():
 
 @app.route('/api/get_entry')
 def get_entry():
-    """
-    Get entries for a specific date and type (forecast or actual).
-    Query params: date, type (forecast|actual)
+    """Get entries for a specific date and type. params: date, type (forecast|actual)
     """
     user_email = get_user_email()
     if not user_email:
@@ -454,22 +456,22 @@ def get_entry():
 
 @app.route('/api/get_history')
 def get_history():
-    """Retrieve the most recent timesheet entries for the user (from either DB)."""
+    """get the most recent timesheet entries for the user (from either DB)."""
     user_email = get_user_email()
     
-    # Try forecast first
+    # try forecast first
     most_recent_forecast = db.session.query(ForecastEntry.survey_id, ForecastEntry.modified)\
         .filter_by(team_member=user_email)\
         .order_by(ForecastEntry.modified.desc())\
         .first()
     
-    # Try current/actual
+    # try current/actual
     most_recent_current = db.session.query(CurrentEntry.survey_id, CurrentEntry.modified)\
         .filter_by(team_member=user_email)\
         .order_by(CurrentEntry.modified.desc())\
         .first()
     
-    # Determine which is more recent
+    # find which is more recent
     entries = []
     if most_recent_forecast and most_recent_current:
         if most_recent_forecast[1] > most_recent_current[1]:
@@ -510,7 +512,7 @@ def get_history():
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    """Submit timesheet entries for a specific date (forecast or actual)."""
+    """Submit entries for date."""
     user_email = get_user_email()
     data = request.get_json()
     
@@ -524,12 +526,11 @@ def submit():
     if not selected_date:
         return jsonify({'error': 'Date is required'}), 400
     
-    # Validate entry based on business rules
+    # Validate entry 
     today = datetime.now().date()
     date_obj = datetime.strptime(selected_date, '%Y-%m-%d').date()
     
     if entry_type == 'forecast':
-        # Forecasts: Cannot backfill past Mondays
         next_monday = datetime.strptime(get_next_monday(), '%Y-%m-%d').date()
         if date_obj < today and date_obj != next_monday:
             return jsonify({'error': 'Cannot submit forecast for expired week'}), 400
@@ -545,7 +546,7 @@ def submit():
         Model = CurrentEntry
     
     try:
-        # Delete existing entries for this user and survey_id
+        # Delete existing entries 
         Model.query.filter_by(
             team_member=user_email,
             survey_id=survey_id
@@ -580,7 +581,7 @@ def submit():
 
 
 def init_db():
-    """Initialize the database tables for both binds."""
+    """  database init tables for both binds"""
     with app.app_context():
         db.create_all()
         print("Databases initialized successfully (forecast + current).")
