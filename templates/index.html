@@ -915,6 +915,37 @@
         .team-member-activity:first-child:hover {
             padding-top: 8px;
         }
+        
+        /* Collapsible Team Activity Section - Smooth Animation */
+        .team-activity-content {
+            display: grid;
+            grid-template-rows: 1fr;
+            transition: grid-template-rows 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .team-activity-inner {
+            overflow: hidden;
+            transition: opacity 0.3s ease;
+            opacity: 1;
+        }
+        
+        .team-activity-content.collapsed {
+            grid-template-rows: 0fr;
+            margin-top: 0 !important;
+        }
+        
+        .team-activity-content.collapsed .team-activity-inner {
+            opacity: 0;
+            min-height: 0;
+        }
+        
+        #teamActivityChevron {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #teamActivityChevron.collapsed {
+            transform: rotate(-90deg);
+        }
     </style>
 </head>
 <body class="min-h-screen py-8 px-6">
@@ -1065,7 +1096,7 @@
                     <svg class="w-4 h-4 text-brand-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
-                    <span class="font-semibold text-brand-dark text-sm">Activity Map</span>
+                    <span class="font-semibold text-brand-dark text-sm">My Activity Map</span>
                     <span class="text-xs text-gray-400">({{ default_date[:4] }})</span>
                 </div>
             </div>
@@ -1122,7 +1153,7 @@
         {% if direct_reports and direct_reports|length > 0 %}
         <!-- Team Activity Overview Section -->
         <div class="activity-map-card mt-6 p-5">
-            <div class="flex items-start gap-4 mb-4">
+            <div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleTeamActivity()">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 text-brand-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
@@ -1130,10 +1161,17 @@
                     <span class="font-semibold text-brand-dark text-sm">Team Activity Overview</span>
                     <span class="text-xs text-gray-400">({{ direct_reports|length }} Direct Report{% if direct_reports|length > 1 %}s{% endif %})</span>
                 </div>
+                <button id="teamActivityToggleBtn" class="flex items-center gap-1.5 px-3 py-1.5 bg-brand-blue text-white text-xs font-semibold rounded-lg hover:bg-brand-dark transition-colors">
+                    <span id="teamActivityToggleText">Show</span>
+                    <svg id="teamActivityChevron" class="w-4 h-4 transition-transform duration-300 collapsed" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
             </div>
             
-            <!-- Team Members Activity Maps -->
-            <div id="teamActivityContainer" class="space-y-6">
+            <!-- Team Members Activity Maps (Collapsible) -->
+            <div id="teamActivityContainer" class="mt-4 team-activity-content collapsed">
+                <div class="team-activity-inner space-y-6">
                 <!-- Team member activity maps will be injected by JS -->
                 {% for report in direct_reports %}
                 <div class="team-member-activity border-t border-gray-100 pt-4 first:border-t-0 first:pt-0" data-email="{{ report.email }}" data-name="{{ report.name }}">
@@ -1178,6 +1216,7 @@
                     </div>
                 </div>
                 {% endfor %}
+                </div>
             </div>
         </div>
         {% endif %}
@@ -1946,6 +1985,19 @@
 
         // Team Activity Map Functions
         const directReports = {{ direct_reports | tojson | default('[]', true) }};
+
+        function toggleTeamActivity() {
+            const container = document.getElementById('teamActivityContainer');
+            const chevron = document.getElementById('teamActivityChevron');
+            const toggleText = document.getElementById('teamActivityToggleText');
+            if (container && chevron) {
+                container.classList.toggle('collapsed');
+                chevron.classList.toggle('collapsed');
+                if (toggleText) {
+                    toggleText.textContent = container.classList.contains('collapsed') ? 'Show' : 'Hide';
+                }
+            }
+        }
 
         async function loadTeamActivityMaps() {
             if (!directReports || directReports.length === 0) return;
