@@ -6,14 +6,86 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from functools import lru_cache
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
 import pandas as pd
 import requests
 import urllib3
+import urllib.parse 
 import json
 import os
-
+import logging
+from dotenv import load_dotenv
+load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
+
+# ==================== MSSQL Connection for Team List & Projects ====================
+# Hardcoded database configuration
+MSSQL_SERVER = 'GREAZUK1DB036P'
+MSSQL_PORT = 51018
+MSSQL_DATABASE = 'EMEA_activity_tracker'
+
+def get_mssql_engine():
+    """Create MSSQL engine - SQL Auth for deployment, Windows Auth for local."""
+    
+    username = os.environ.get('MSSQL_USERNAME')
+    password = os.environ.get('MSSQL_PASSWORD')
+    use_sql_auth = os.environ.get('USE_SQL_AUTH', 'false').lower() == 'true'
+    
+    try:
+        if use_sql_auth and username and password:
+            # SQL Auth for Posit
+            connection_string = (
+                f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+                f"SERVER={MSSQL_SERVER},{MSSQL_PORT};"
+                f"DATABASE={MSSQL_DATABASE};"
+                f"UID={username};"
+                f"PWD={password};"
+            )
+            logger.info("Attempting SQL Authentication...")
+        else:
+            # Windows Auth for local dev
+            connection_string = (
+                f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+                f"SERVER={MSSQL_SERVER},{MSSQL_PORT};"
+                f"DATABASE={MSSQL_DATABASE};"
+                f"Trusted_Connection=yes;"
+            )
+            logger.info("Attempting Windows Authentication...")
+        
+        params = urllib.parse.quote_plus(connection_string)
+        engine = create_engine(
+            f"mssql+pyodbc:///?odbc_connect={params}",
+            pool_size=5,
+            max_overflow=10,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+        )
+        
+        # test
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        
+        logger.info("✓ MSSQL connection successful!")
+        return engine
+        
+    except Exception as exc:
+        logger.error(f"Failed to create MSSQL engine: {exc}")
+        return None
+
+# cache engine
+_mssql_engine = None
+
+def get_engine():
+    """Get or create the cached MSSQL engine."""
+    global _mssql_engine
+    if _mssql_engine is None:
+        _mssql_engine = get_mssql_engine()
+    return _mssql_engine
 
 # app config for deployment
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///timesheet_forecast.db'  # Default/fallback
@@ -164,24 +236,27 @@ def get_date_status(date_str, entry_type, has_entry):
             return 'red'
 
 
-# load projects from csv
+# load projects from MSSQL database
 def load_active_projects():
-    """Load active projects from projects.csv file."""
-    csv_path = os.path.join(os.path.dirname(__file__), 'projects.csv')
+    """Load active projects from dbo.projects table in MSSQL."""
+    engine = get_engine()
     
-    if not os.path.exists(csv_path):
-        print(f"Warning: {csv_path} not found. Using empty project list.")
+    if engine is None:
+        logger.warning("MSSQL engine not available. Using empty project list.")
         return []
     
     try:
-        df = pd.read_csv(csv_path)
-        active_df = df[(df['Active'] == True) | (df['Active'] == 'True')].copy()
-        active_df.loc[:, 'Index'] = pd.to_numeric(active_df['Index'], errors='coerce')
-        active_df = active_df.sort_values('Index', ascending=True)
-        projects = active_df['Title'].tolist()
+        query = """
+            SELECT Title, [Sorting] 
+            FROM dbo.projects 
+            WHERE LOWER(Active) = 'true'
+            ORDER BY [Sorting] ASC
+        """
+        df = pd.read_sql(query, engine)
+        projects = df['Title'].tolist()
         return projects
     except Exception as e:
-        print(f"Error loading projects.csv: {e}")
+        logger.error(f"Error loading projects from database: {e}")
         return []
 
 
@@ -238,65 +313,67 @@ def get_user_email():
 
 
 def get_user_name(email):
-    """find user's name from EMEA_team_list.csv from on email."""
-    csv_path = os.path.join(os.path.dirname(__file__), 'EMEA_team_list.csv')
+    """Find user's name from dbo.EMEA_team_list table based on email."""
+    engine = get_engine()
     
-    if not os.path.exists(csv_path):
+    if engine is None:
         return email  # Fallback
     
     try:
-        df = pd.read_csv(csv_path)
-        match = df[df['Email'].str.lower() == email.lower()]
-        if not match.empty:
-            return match.iloc[0]['Title']
+        query = text("SELECT Title FROM dbo.EMEA_team_list WHERE LOWER(Email) = LOWER(:email)")
+        with engine.connect() as conn:
+            result = conn.execute(query, {"email": email}).fetchone()
+            if result:
+                return result[0]
     except Exception as e:
-        print(f"Error looking up user name: {e}")
+        logger.error(f"Error looking up user name: {e}")
     
     return email  
 
 
 def get_direct_reports(email):
-    """Get direct reports for a user from EMEA_team_list.csv based on their email."""
-    csv_path = os.path.join(os.path.dirname(__file__), 'EMEA_team_list.csv')
+    """Get direct reports for a user from dbo.EMEA_team_list table based on their email."""
+    engine = get_engine()
     
-    if not os.path.exists(csv_path):
+    if engine is None:
         return []
     
     try:
-        df = pd.read_csv(csv_path)
-        
-        # Check if Reports column exists
-        if 'Reports' not in df.columns:
-            return []
-        
-        match = df[df['Email'].str.lower() == email.lower()]
-        
-        if match.empty:
-            return []
-        
-        # Access the Reports column value directly
-        reports_field = match.iloc[0]['Reports']
-        
-        # Handle NaN/empty values
-        if pd.isna(reports_field) or not reports_field or str(reports_field).strip() == '':
-            return []
-        
-        # Split by comma and trim whitespace
-        report_names = [name.strip() for name in str(reports_field).split(',') if name.strip()]
-        
-        # Look up each report's email by their Title (name)
-        direct_reports = []
-        for name in report_names:
-            report_match = df[df['Title'].str.lower() == name.lower()]
-            if not report_match.empty:
-                direct_reports.append({
-                    'name': report_match.iloc[0]['Title'],
-                    'email': report_match.iloc[0]['Email']
-                })
-        
-        return direct_reports
+        # First, get the Reports field for this user
+        query = text("SELECT Reports FROM dbo.EMEA_team_list WHERE LOWER(Email) = LOWER(:email)")
+        with engine.connect() as conn:
+            result = conn.execute(query, {"email": email}).fetchone()
+            
+            if not result or not result[0]:
+                return []
+            
+            reports_field = result[0]
+            
+            # Handle empty values
+            if pd.isna(reports_field) or not str(reports_field).strip():
+                return []
+            
+            # Split by comma and trim whitespace
+            report_names = [name.strip() for name in str(reports_field).split(',') if name.strip()]
+            
+            if not report_names:
+                return []
+            
+            # Look up each report's email by their Title (name)
+            direct_reports = []
+            for name in report_names:
+                lookup_query = text("SELECT Title, Email FROM dbo.EMEA_team_list WHERE LOWER(Title) = LOWER(:name)")
+                report_result = conn.execute(lookup_query, {"name": name}).fetchone()
+                if report_result:
+                    direct_reports.append({
+                        'name': report_result[0],
+                        'email': report_result[1]
+                    })
+            
+            return direct_reports
         
     except Exception as e:
+        logger.error(f"Error getting direct reports: {e}")
         return []
 
 
