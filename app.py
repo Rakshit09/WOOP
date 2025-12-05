@@ -23,50 +23,60 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# ==================== MSSQL Connection for Team List & Projects ====================
-# Hardcoded database configuration
+# database config
 MSSQL_SERVER = 'GREAZUK1DB036P'
 MSSQL_PORT = 51018
 MSSQL_DATABASE = 'EMEA_activity_tracker'
+MSSQL_DOMAIN = 'emea'  
+
+# Cache the engine
+_mssql_engine = None
+
 
 def get_mssql_engine():
-    """Create MSSQL engine - SQL Auth for deployment, Windows Auth for local."""
+    """Create MSSQL engine using pymssql (works on both Windows and Linux/Posit)."""
     
+    # Get credentials from environment variables
     username = os.environ.get('MSSQL_USERNAME')
     password = os.environ.get('MSSQL_PASSWORD')
-    use_sql_auth = os.environ.get('USE_SQL_AUTH', 'false').lower() == 'true'
+    
+    if not username or not password:
+        logger.error("MSSQL_USERNAME and MSSQL_PASSWORD environment variables are required")
+        logger.error("Set these in your .env file (local) or Posit Connect environment variables")
+        return None
+    
+    # Add domain prefix for Windows authentication (like your working app)
+    # Format: domain\\username
+    if MSSQL_DOMAIN and '\\' not in username:
+        full_username = f"{MSSQL_DOMAIN}\\{username}"
+    else:
+        full_username = username
+    
+    logger.info(f"Attempting connection to {MSSQL_SERVER}:{MSSQL_PORT}/{MSSQL_DATABASE}")
+    logger.info(f"Username format: {MSSQL_DOMAIN}\\****")
     
     try:
-        if use_sql_auth and username and password:
-            # SQL Auth for Posit
-            connection_string = (
-                f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-                f"SERVER={MSSQL_SERVER},{MSSQL_PORT};"
-                f"DATABASE={MSSQL_DATABASE};"
-                f"UID={username};"
-                f"PWD={password};"
-            )
-            logger.info("Attempting SQL Authentication...")
-        else:
-            # Windows Auth for local dev
-            connection_string = (
-                f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-                f"SERVER={MSSQL_SERVER},{MSSQL_PORT};"
-                f"DATABASE={MSSQL_DATABASE};"
-                f"Trusted_Connection=yes;"
-            )
-            logger.info("Attempting Windows Authentication...")
+        # Use URL.create() like your working app
+        connection_url = URL.create(
+            "mssql+pymssql",
+            username=full_username,
+            password=password,
+            host=MSSQL_SERVER,
+            port=MSSQL_PORT,
+            database=MSSQL_DATABASE,
+            query={"timeout": "30"}
+        )
         
-        params = urllib.parse.quote_plus(connection_string)
         engine = create_engine(
-            f"mssql+pyodbc:///?odbc_connect={params}",
+            connection_url,
             pool_size=5,
             max_overflow=10,
             pool_pre_ping=True,
             pool_recycle=3600,
+            pool_timeout=30,
         )
         
-        # test
+        # Test the connection
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         
@@ -77,8 +87,6 @@ def get_mssql_engine():
         logger.error(f"Failed to create MSSQL engine: {exc}")
         return None
 
-# cache engine
-_mssql_engine = None
 
 def get_engine():
     """Get or create the cached MSSQL engine."""
@@ -87,17 +95,17 @@ def get_engine():
         _mssql_engine = get_mssql_engine()
     return _mssql_engine
 
-# app config for deployment
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///timesheet_forecast.db'  # Default/fallback
+
+# App config for deployment
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///timesheet_forecast.db'
 app.config['SQLALCHEMY_BINDS'] = {
     'forecast': 'sqlite:///timesheet_forecast.db',
     'current': 'sqlite:///timesheet_current.db'
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# database init
+# Database init
 db = SQLAlchemy(app)
-
 
 # database models
 class ForecastEntry(db.Model):
@@ -401,10 +409,10 @@ def index():
     )
 
 
-@app.route('/templates/logo.png')
+@app.route('/static/logo.png')
 def serve_logo():
-    """get logo image"""
-    templates_dir = os.path.join(os.path.dirname(__file__), 'templates')
+    """Serve logo image from static folder."""
+    templates_dir = os.path.join(os.path.dirname(__file__), 'static')
     return send_from_directory(templates_dir, 'logo.png')
 
 

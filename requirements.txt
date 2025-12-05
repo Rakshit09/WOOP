@@ -5,3 +5,7 @@ gunicorn==21.2.0
 sqlalchemy==2.0.44
 numpy==1.26.4
 requests
+urllib3
+pymssql
+pyodbc
+dotenv
