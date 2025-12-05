@@ -130,7 +130,7 @@
             width: 100%;
             background: white;
             border-radius: 2px;
-            max-height: 430px;
+            max-height: 450px;
             overflow-y: auto;
             overflow-x: hidden;
             z-index: 9999;
@@ -459,19 +459,22 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            contain: layout style;
+            transition: background 0.1s ease-out;
         }
         
-        .week-dropdown-item:hover,
-        .week-dropdown-item.highlighted {
+        .week-dropdown-item:hover {
             background: rgba(0, 120, 212, 0.1);
             border-left: 3px solid #0078D4;
             padding-left: 13px;
         }
         
         .week-dropdown-item.selected {
-            background: #0078D4;
-            color: white;
+            background: rgba(0, 120, 212, 0.08);
+            font-weight: 600;
+        }
+        
+        .week-dropdown-item.selected:hover {
+            background: rgba(0, 120, 212, 0.1);
         }
         
         .week-dropdown-item.outstanding-item {
@@ -480,6 +483,7 @@
         
         .week-dropdown-item.outstanding-item:hover {
             border-left-color: #dc2626;
+            background: rgba(220, 38, 38, 0.1);
         }
         
         .week-dropdown-item.forecast-item {
@@ -863,7 +867,7 @@
                     <svg class="w-4 h-4 text-brand-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
-                    <span class="font-semibold text-brand-dark text-sm">My Activity Map</span>
+                    <span class="font-semibold text-brand-dark text-sm">My Activity Overview</span>
                     <span class="text-xs text-gray-400">({{ default_date[:4] }})</span>
                 </div>
             </div>
@@ -1406,7 +1410,12 @@
             // Build HTML as string for better performance
             let html = '';
             if (filteredProjects.length === 0) {
-                html = `<div class="dropdown-item" style="color:#94a3b8;cursor:default">No matching projects found</div>`;
+                html = `<div class="dropdown-item" style="color:#94a3b8;cursor:default">
+                    <svg class="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    No matching projects found
+                </div>`;
             } else {
                 // Limit to first 50 items for performance
                 const displayProjects = filteredProjects.slice(0, 50);
@@ -1414,9 +1423,16 @@
                     let displayText = project;
                     if (filterValue) {
                         const regex = new RegExp(`(${filterValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-                        displayText = project.replace(regex, '<b style="color:#0078D4">$1</b>');
+                        displayText = project.replace(regex, '<span style="color:#0078D4;font-weight:700">$1</span>');
                     }
-                    return `<div class="dropdown-item" data-index="${index}" data-project="${project.replace(/"/g, '&quot;')}"><span>${displayText}</span></div>`;
+                    return `<div class="dropdown-item" data-index="${index}" data-project="${project.replace(/"/g, '&quot;')}">
+                        <div class="w-8 h-8 rounded-lg bg-brand-light flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-brand-dark/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                        </div>
+                        <span>${displayText}</span>
+                    </div>`;
                 }).join('');
             }
             
