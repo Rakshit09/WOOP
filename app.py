@@ -305,7 +305,7 @@ def get_user_email():
     
     if not username:
         if os.environ.get('FLASK_DEBUG') or app.debug:
-            return request.args.get('user', 'dev.user3@gallagherre.com')
+            return request.args.get('user', 'thomas_kiessling@gallagherre.com')
         return None
     
     email = lookup_email_by_username(username)
