@@ -872,6 +872,35 @@
             margin-bottom: 4px;
         }
         
+        /* Responsive Activity Map Container */
+        .activity-map-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4rem; /* Controls space between activity map and legend/percentage */
+            width: 100%;
+            overflow-x: auto;
+            padding: 0.5rem 0;
+        }
+        
+        .activity-map-container::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .activity-map-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        
+        .activity-map-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .activity-map-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
         .month-label {
             font-size: 10px;
             color: #64748b;
@@ -901,19 +930,7 @@
         
         /* Team Member Activity Section Styling */
         .team-member-activity {
-            transition: all var(--transition-smooth);
-        }
-        
-        .team-member-activity:hover {
-            background: rgba(0, 120, 212, 0.02);
-            border-radius: 12px;
-            margin: -8px;
-            padding: 8px;
-            padding-top: 12px;
-        }
-        
-        .team-member-activity:first-child:hover {
-            padding-top: 8px;
+            /* Static styling - no hover effects */
         }
         
         /* Collapsible Team Activity Section - Smooth Animation */
@@ -1102,10 +1119,9 @@
             </div>
             
             <!-- Activity Grid with Legend -->
-            <!-- ml-16 = left margin to center the map (tune: ml-0, ml-8, ml-16, ml-24, ml-32, etc.) -->
-            <div class="flex items-center gap-6 ml-72">
+            <div class="activity-map-container">
                 <!-- Grid -->
-                <div class="space-y-1.5">
+                <div class="space-y-1.5 flex-shrink-0">
                     <!-- Month Labels Row -->
                     <div id="monthLabelsRow" class="activity-months">
                         <!-- Month labels injected by JS -->
@@ -1114,7 +1130,7 @@
                     <!-- Forecasts Row (Mondays) -->
                     <div class="flex items-center">
                         <span class="w-14 text-xs text-gray-400 font-medium text-right mr-2 flex-shrink-0">Forecast</span>
-                        <div id="forecastRow" class="flex gap-0.5 flex-wrap">
+                        <div id="forecastRow" class="flex gap-0.5">
                             <!-- Cells injected by JS -->
                         </div>
                     </div>
@@ -1122,14 +1138,14 @@
                     <!-- Actuals Row (Fridays) -->
                     <div class="flex items-center">
                         <span class="w-14 text-xs text-gray-400 font-medium text-right mr-2 flex-shrink-0">Actual</span>
-                        <div id="actualRow" class="flex gap-0.5 flex-wrap">
+                        <div id="actualRow" class="flex gap-0.5">
                             <!-- Cells injected by JS -->
                         </div>
                     </div>
                 </div>
                 
-                <!-- Legend - 2x2 Grid (gap-4 = distance from map, tune: gap-2, gap-4, gap-6, gap-8) -->
-                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs ml-24">
+                <!-- Legend - 2x2 Grid -->
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs flex-shrink-0 w-32">
                     <div class="flex items-center gap-1.5">
                         <div class="w-3 h-3 rounded-sm bg-gradient-to-br from-green-500 to-green-600"></div>
                         <span class="text-gray-500">Done</span>
@@ -1183,9 +1199,9 @@
                         <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Read-only</span>
                     </div>
                     
-                    <div class="flex items-center gap-6 ml-72">
+                    <div class="activity-map-container">
                         <!-- Grid -->
-                        <div class="space-y-1.5">
+                        <div class="space-y-1.5 flex-shrink-0">
                             <!-- Month Labels Row -->
                             <div class="team-month-labels activity-months">
                                 <!-- Month labels injected by JS -->
@@ -1194,7 +1210,7 @@
                             <!-- Forecasts Row (Mondays) -->
                             <div class="flex items-center">
                                 <span class="w-14 text-xs text-gray-400 font-medium text-right mr-2 flex-shrink-0">Forecast</span>
-                                <div class="team-forecast-row flex gap-0.5 flex-wrap">
+                                <div class="team-forecast-row flex gap-0.5">
                                     <!-- Cells injected by JS -->
                                 </div>
                             </div>
@@ -1202,14 +1218,14 @@
                             <!-- Actuals Row (Fridays) -->
                             <div class="flex items-center">
                                 <span class="w-14 text-xs text-gray-400 font-medium text-right mr-2 flex-shrink-0">Actual</span>
-                                <div class="team-actual-row flex gap-0.5 flex-wrap">
+                                <div class="team-actual-row flex gap-0.5">
                                     <!-- Cells injected by JS -->
                                 </div>
                             </div>
                         </div>
                         
                         <!-- % Filled Stats -->
-                        <div class="team-fill-stats ml-24 text-center">
+                        <div class="team-fill-stats text-center flex-shrink-0 w-32">
                             <div class="text-2xl font-bold text-brand-dark team-fill-percent">--%</div>
                             <div class="text-xs text-gray-400">Filled</div>
                         </div>
