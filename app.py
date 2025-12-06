@@ -2,7 +2,7 @@
 WOOP 2.0 Architecture - Forecast & Actuals Split
 """
 
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -34,7 +34,7 @@ _mssql_engine = None
 
 
 def get_mssql_engine():
-    """Create MSSQL engine using pymssql (works on both Windows and Linux/Posit)."""
+    """ MSSQL engine using pymssql - will work on Windows and Posit"""
     
     # Get credentials from environment variables
     username = os.environ.get('MSSQL_USERNAME')
@@ -45,7 +45,6 @@ def get_mssql_engine():
         logger.error("Set these in your .env file (local) or Posit Connect environment variables")
         return None
     
-    # Add domain prefix for Windows authentication (like your working app)
     # Format: domain\\username
     if MSSQL_DOMAIN and '\\' not in username:
         full_username = f"{MSSQL_DOMAIN}\\{username}"
@@ -56,7 +55,7 @@ def get_mssql_engine():
     logger.info(f"Username format: {MSSQL_DOMAIN}\\****")
     
     try:
-        # Use URL.create() like your working app
+        # use URL.create()
         connection_url = URL.create(
             "mssql+pymssql",
             username=full_username,
@@ -407,13 +406,6 @@ def index():
         projects=projects,
         direct_reports=direct_reports
     )
-
-
-@app.route('/static/logo.png')
-def serve_logo():
-    """Serve logo image from static folder."""
-    templates_dir = os.path.join(os.path.dirname(__file__), 'static')
-    return send_from_directory(templates_dir, 'logo.png')
 
 
 @app.route('/api/activity_map')
