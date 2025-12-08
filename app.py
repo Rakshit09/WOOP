@@ -942,6 +942,245 @@ def dismiss_nudge():
     return jsonify({'success': True})
 
 
+def calculate_member_score(member_email):
+    """
+    Calculate gamification score for a team member.
+    
+    Scoring system (based on last 8 weeks):
+    - On-time submission (within 3 days of due date): +10 points
+    - Late/backfill submission: +5 points  
+    - Missing submission: 0 points
+    - Nudge received: -2 points per nudge
+    
+    Returns score as percentage (0-100)
+    """
+    today = datetime.now().date()
+    
+    # Only consider the last 8 weeks for scoring (more fair/relevant)
+    recent_fridays = []
+    current_friday = today
+    # Find the most recent Friday
+    while current_friday.weekday() != 4:  # 4 = Friday
+        current_friday -= timedelta(days=1)
+    
+    # Get last 8 Fridays
+    for i in range(8):
+        friday = current_friday - timedelta(weeks=i)
+        if friday <= today:  # Only past Fridays
+            recent_fridays.append(friday.strftime('%Y-%m-%d'))
+    
+    logger.info(f"Scoring based on recent Fridays: {recent_fridays}")
+    
+    # Get all actual entries for this member (case-insensitive)
+    all_entries = CurrentEntry.query.all()
+    current_entries = [e for e in all_entries if e.team_member.lower() == member_email.lower()]
+    
+    logger.info(f"Score calc for {member_email}: found {len(current_entries)} entries")
+    
+    # Build dict of submission dates and modified times
+    submissions = {}
+    for entry in current_entries:
+        date_part = entry.survey_id.split(' ')[0]
+        if date_part not in submissions or entry.modified > submissions[date_part]:
+            submissions[date_part] = entry.modified
+    
+    logger.info(f"Submissions found: {list(submissions.keys())}")
+    
+    # Calculate points for each recent Friday
+    total_points = 0
+    max_points = 0
+    
+    for friday in recent_fridays:
+        friday_date = datetime.strptime(friday, '%Y-%m-%d').date()
+        
+        max_points += 10  # Maximum possible for this week
+        
+        if friday in submissions:
+            modified_date = submissions[friday].date() if hasattr(submissions[friday], 'date') else submissions[friday]
+            
+            # Grace period: 3 days after the Friday
+            grace_deadline = friday_date + timedelta(days=3)
+            
+            if modified_date <= grace_deadline:
+                total_points += 10  # On-time
+            else:
+                total_points += 5   # Backfill (late)
+        # else: 0 points for missing
+    
+    # Deduct points for nudges received (only count recent nudges - last 8 weeks)
+    eight_weeks_ago = today - timedelta(weeks=8)
+    nudge_count = Nudge.query.filter(
+        Nudge.to_email == member_email.lower(),
+        Nudge.created >= eight_weeks_ago
+    ).count()
+    nudge_penalty = nudge_count * 2
+    total_points = max(0, total_points - nudge_penalty)
+    
+    logger.info(f"Score calc: total_points={total_points}, max_points={max_points}, nudges={nudge_count}")
+    
+    # Calculate percentage score
+    if max_points == 0:
+        return {'score': 100, 'nudges': nudge_count, 'weeks_completed': 0, 'weeks_total': 0}
+    
+    weeks_completed = len([f for f in recent_fridays if f in submissions])
+    weeks_total = len(recent_fridays)
+    
+    score = min(100, max(0, round((total_points / max_points) * 100)))
+    
+    logger.info(f"Final score for {member_email}: {score}% ({weeks_completed}/{weeks_total} weeks)")
+    
+    return {
+        'score': score,
+        'nudges': nudge_count,
+        'weeks_completed': weeks_completed,
+        'weeks_total': weeks_total
+    }
+
+
+def get_manager_name(manager_email):
+    """Get the first name of a manager for team naming."""
+    full_name = get_user_name(manager_email)
+    if full_name and full_name != manager_email:
+        # Extract first name
+        return full_name.split()[0]
+    return "Team"
+
+
+@app.route('/api/debug_score')
+def debug_score():
+    """Debug endpoint to check score calculation."""
+    user_email = get_user_email()
+    if not user_email:
+        return jsonify({'error': 'User not authenticated'}), 401
+    
+    member_email = request.args.get('email', user_email)
+    
+    # Get all entries in the database
+    all_current = CurrentEntry.query.all()
+    all_forecast = ForecastEntry.query.all()
+    
+    # Find entries for this member
+    member_current = [e for e in all_current if e.team_member.lower() == member_email.lower()]
+    
+    # Get recent Fridays
+    today = datetime.now().date()
+    current_friday = today
+    while current_friday.weekday() != 4:
+        current_friday -= timedelta(days=1)
+    
+    recent_fridays = []
+    for i in range(8):
+        friday = current_friday - timedelta(weeks=i)
+        if friday <= today:
+            recent_fridays.append(friday.strftime('%Y-%m-%d'))
+    
+    # Build submissions dict
+    submissions = {}
+    for entry in member_current:
+        date_part = entry.survey_id.split(' ')[0]
+        submissions[date_part] = {
+            'survey_id': entry.survey_id,
+            'modified': entry.modified.isoformat() if entry.modified else None
+        }
+    
+    # Get all unique team_members in database
+    unique_members = list(set(e.team_member for e in all_current))
+    
+    return jsonify({
+        'requested_email': member_email,
+        'total_current_entries': len(all_current),
+        'total_forecast_entries': len(all_forecast),
+        'member_entries_found': len(member_current),
+        'unique_team_members_in_db': unique_members,
+        'recent_fridays': recent_fridays,
+        'submissions_for_member': submissions,
+        'score_data': calculate_member_score(member_email)
+    })
+
+
+@app.route('/api/team_scores')
+def get_team_scores():
+    """
+    Get team scores for all teams visible to the current user.
+    Teams are named after their line manager (e.g., "Team Thomas").
+    """
+    user_email = get_user_email()
+    if not user_email:
+        return jsonify({'error': 'User not authenticated'}), 401
+    
+    engine = get_engine()
+    if engine is None:
+        return jsonify({'error': 'Database not available'}), 500
+    
+    try:
+        with engine.connect() as conn:
+            # Get all managers with reports
+            managers_query = text("""
+                SELECT DISTINCT Title, Email, Reports 
+                FROM dbo.EMEA_team_list 
+                WHERE Reports IS NOT NULL AND Reports != ''
+            """)
+            managers = conn.execute(managers_query).fetchall()
+            
+            # Get ALL team members in one query (avoid N+1)
+            all_members_query = text("""
+                SELECT LOWER(Title) as name_lower, Email 
+                FROM dbo.EMEA_team_list
+            """)
+            all_members = {row[0]: row[1] for row in conn.execute(all_members_query).fetchall()}
+        
+        teams = []
+        
+        for row in managers:
+            manager_name = row[0]
+            manager_email = row[1]
+            reports_field = row[2]
+            
+            if not reports_field or pd.isna(reports_field):
+                continue
+            
+            # Get first name for team name
+            first_name = manager_name.split()[0] if manager_name else "Unknown"
+            team_name = f"Team {first_name}"
+            
+            # Get direct reports
+            report_names = [name.strip().lower() for name in str(reports_field).split(',') if name.strip()]
+            
+            if not report_names:
+                continue
+            
+            # Calculate scores using pre-fetched member emails
+            member_scores = []
+            for name in report_names:
+                member_email = all_members.get(name)
+                if member_email:
+                    score_data = calculate_member_score(member_email)
+                    member_scores.append(score_data['score'])
+            
+            if member_scores:
+                avg_score = round(sum(member_scores) / len(member_scores))
+                teams.append({
+                    'team_name': team_name,
+                    'manager_email': manager_email,
+                    'score': avg_score,
+                    'member_count': len(member_scores)
+                })
+        
+        # Sort by score descending and add rank
+        teams.sort(key=lambda x: x['score'], reverse=True)
+        for i, team in enumerate(teams):
+            team['rank'] = i + 1
+        
+        return jsonify({
+            'teams': teams,
+            'user_email': user_email
+        })
+        
+    except Exception as e:
+        logger.error(f"Error calculating team scores: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 def init_db():
     """  database init tables for both binds"""
     with app.app_context():
