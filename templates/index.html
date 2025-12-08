@@ -2429,11 +2429,17 @@
                 team.displayRank = index + 1;
             });
             
-            // Build vertical bars (without labels)
+            // Calculate relative y-scale: max height = top score + 20%
+            const topScore = sortedTeams[0]?.score || 100;
+            const yMax = Math.ceil(topScore * 1.2); // 20% more than top score
+            const yMaxCapped = Math.min(yMax, 120); // Cap at 120 for display purposes
+            
+            // Build vertical bars (without labels) - height relative to yMax
             const bars = sortedTeams.map(team => {
                 const rankClass = team.displayRank === 1 ? 'rank-1' : '';
                 const scoreClass = team.score >= 80 ? 'excellent' : (team.score >= 60 ? 'good' : 'needs-work');
-                const barHeight = Math.max(5, team.score); // Minimum 5% height for visibility
+                // Calculate bar height as percentage of yMax instead of 100
+                const barHeight = Math.max(5, (team.score / yMaxCapped) * 100);
                 
                 return `<div class="chart-bar-wrapper">
                     <div class="chart-bar ${scoreClass} ${rankClass}" style="height: 0%;" data-height="${barHeight}" title="${team.team_name}: ${team.score}%">
@@ -2449,18 +2455,19 @@
                 return `<div class="x-label ${rankClass}">${team.team_name}</div>`;
             }).join('');
             
-            // Y-axis ticks (bottom to top: 0, 25, 50, 75, 100)
+            // Y-axis ticks - relative to yMax (5 evenly spaced ticks)
+            const yTicks = [];
+            for (let i = 4; i >= 0; i--) {
+                const tickValue = Math.round((yMaxCapped / 4) * i);
+                yTicks.push(`<span class="y-tick">${tickValue}</span>`);
+            }
             const yAxis = `
                 <div class="chart-y-axis">
-                    <span class="y-tick">100</span>
-                    <span class="y-tick">75</span>
-                    <span class="y-tick">50</span>
-                    <span class="y-tick">25</span>
-                    <span class="y-tick">0</span>
+                    ${yTicks.join('\n                    ')}
                 </div>
             `;
             
-            // Grid lines (5 lines for 0, 25, 50, 75, 100)
+            // Grid lines (5 lines corresponding to y-axis ticks)
             const grid = `
                 <div class="chart-grid">
                     <div class="grid-line"></div>

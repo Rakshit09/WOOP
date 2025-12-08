@@ -947,8 +947,10 @@ def calculate_member_score(member_email):
     Calculate gamification score for a team member.
     
     Scoring system (based on last 8 weeks):
-    - On-time submission (within 3 days of due date): +10 points
-    - Late/backfill submission: +5 points  
+    - On-time Monday forecast (within 1 day grace): +10 points
+    - Late Monday forecast: +5 points
+    - On-time Friday actual (within 1 day grace): +10 points
+    - Late Friday actual: +5 points  
     - Missing submission: 0 points
     - Nudge received: -2 points per nudge
     
@@ -956,55 +958,97 @@ def calculate_member_score(member_email):
     """
     today = datetime.now().date()
     
-    # Only consider the last 8 weeks for scoring (more fair/relevant)
+    # Get last 8 Mondays for forecast scoring
+    recent_mondays = []
+    current_monday = today
+    # Find the most recent Monday
+    while current_monday.weekday() != 0:  # 0 = Monday
+        current_monday -= timedelta(days=1)
+    
+    for i in range(8):
+        monday = current_monday - timedelta(weeks=i)
+        if monday <= today:  # Only past/current Mondays
+            recent_mondays.append(monday.strftime('%Y-%m-%d'))
+    
+    # Get last 8 Fridays for actual scoring
     recent_fridays = []
     current_friday = today
     # Find the most recent Friday
     while current_friday.weekday() != 4:  # 4 = Friday
         current_friday -= timedelta(days=1)
     
-    # Get last 8 Fridays
     for i in range(8):
         friday = current_friday - timedelta(weeks=i)
         if friday <= today:  # Only past Fridays
             recent_fridays.append(friday.strftime('%Y-%m-%d'))
     
-    logger.info(f"Scoring based on recent Fridays: {recent_fridays}")
+    logger.info(f"Scoring based on Mondays: {recent_mondays} and Fridays: {recent_fridays}")
+    
+    # Get all forecast entries for this member (case-insensitive)
+    all_forecast_entries = ForecastEntry.query.all()
+    forecast_entries = [e for e in all_forecast_entries if e.team_member.lower() == member_email.lower()]
     
     # Get all actual entries for this member (case-insensitive)
-    all_entries = CurrentEntry.query.all()
-    current_entries = [e for e in all_entries if e.team_member.lower() == member_email.lower()]
+    all_actual_entries = CurrentEntry.query.all()
+    actual_entries = [e for e in all_actual_entries if e.team_member.lower() == member_email.lower()]
     
-    logger.info(f"Score calc for {member_email}: found {len(current_entries)} entries")
+    logger.info(f"Score calc for {member_email}: found {len(forecast_entries)} forecast, {len(actual_entries)} actual entries")
     
-    # Build dict of submission dates and modified times
-    submissions = {}
-    for entry in current_entries:
+    # Build dict of forecast submission dates and modified times
+    forecast_submissions = {}
+    for entry in forecast_entries:
         date_part = entry.survey_id.split(' ')[0]
-        if date_part not in submissions or entry.modified > submissions[date_part]:
-            submissions[date_part] = entry.modified
+        if date_part not in forecast_submissions or entry.modified > forecast_submissions[date_part]:
+            forecast_submissions[date_part] = entry.modified
     
-    logger.info(f"Submissions found: {list(submissions.keys())}")
+    # Build dict of actual submission dates and modified times
+    actual_submissions = {}
+    for entry in actual_entries:
+        date_part = entry.survey_id.split(' ')[0]
+        if date_part not in actual_submissions or entry.modified > actual_submissions[date_part]:
+            actual_submissions[date_part] = entry.modified
     
-    # Calculate points for each recent Friday
+    logger.info(f"Forecast submissions found: {list(forecast_submissions.keys())}")
+    logger.info(f"Actual submissions found: {list(actual_submissions.keys())}")
+    
+    # Calculate points
     total_points = 0
     max_points = 0
     
-    for friday in recent_fridays:
-        friday_date = datetime.strptime(friday, '%Y-%m-%d').date()
+    # Score Monday forecasts (1 day grace period)
+    for monday in recent_mondays:
+        monday_date = datetime.strptime(monday, '%Y-%m-%d').date()
         
-        max_points += 10  # Maximum possible for this week
+        max_points += 10  # Maximum possible for this forecast
         
-        if friday in submissions:
-            modified_date = submissions[friday].date() if hasattr(submissions[friday], 'date') else submissions[friday]
+        if monday in forecast_submissions:
+            modified_date = forecast_submissions[monday].date() if hasattr(forecast_submissions[monday], 'date') else forecast_submissions[monday]
             
-            # Grace period: 3 days after the Friday
-            grace_deadline = friday_date + timedelta(days=3)
+            # Grace period: 1 day after the Monday (submit by Tuesday end)
+            grace_deadline = monday_date + timedelta(days=1)
             
             if modified_date <= grace_deadline:
                 total_points += 10  # On-time
             else:
-                total_points += 5   # Backfill (late)
+                total_points += 5   # Late
+        # else: 0 points for missing
+    
+    # Score Friday actuals (1 day grace period)
+    for friday in recent_fridays:
+        friday_date = datetime.strptime(friday, '%Y-%m-%d').date()
+        
+        max_points += 10  # Maximum possible for this actual
+        
+        if friday in actual_submissions:
+            modified_date = actual_submissions[friday].date() if hasattr(actual_submissions[friday], 'date') else actual_submissions[friday]
+            
+            # Grace period: 1 day after the Friday (submit by Saturday end)
+            grace_deadline = friday_date + timedelta(days=1)
+            
+            if modified_date <= grace_deadline:
+                total_points += 10  # On-time
+            else:
+                total_points += 5   # Late/backfill
         # else: 0 points for missing
     
     # Deduct points for nudges received (only count recent nudges - last 8 weeks)
@@ -1022,12 +1066,14 @@ def calculate_member_score(member_email):
     if max_points == 0:
         return {'score': 100, 'nudges': nudge_count, 'weeks_completed': 0, 'weeks_total': 0}
     
-    weeks_completed = len([f for f in recent_fridays if f in submissions])
-    weeks_total = len(recent_fridays)
+    forecasts_completed = len([m for m in recent_mondays if m in forecast_submissions])
+    actuals_completed = len([f for f in recent_fridays if f in actual_submissions])
+    weeks_completed = forecasts_completed + actuals_completed
+    weeks_total = len(recent_mondays) + len(recent_fridays)
     
     score = min(100, max(0, round((total_points / max_points) * 100)))
     
-    logger.info(f"Final score for {member_email}: {score}% ({weeks_completed}/{weeks_total} weeks)")
+    logger.info(f"Final score for {member_email}: {score}% ({weeks_completed}/{weeks_total} submissions)")
     
     return {
         'score': score,
