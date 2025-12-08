@@ -21,7 +21,27 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static', static_folder='static')
+
+# Debug endpoint to check app health
+@app.route('/api/health')
+def health_check():
+    """Debug endpoint to check app status."""
+    import sys
+    return jsonify({
+        'status': 'ok',
+        'python_version': sys.version,
+        'debug_mode': app.debug,
+        'static_folder': app.static_folder,
+        'static_url_path': app.static_url_path,
+        'env_vars': {
+            'CONNECT_SERVER': bool(os.environ.get('CONNECT_SERVER')),
+            'CONNECT_API_KEY': bool(os.environ.get('CONNECT_API_KEY')),
+            'MSSQL_USERNAME': bool(os.environ.get('MSSQL_USERNAME')),
+            'MSSQL_PASSWORD': bool(os.environ.get('MSSQL_PASSWORD')),
+            'FLASK_DEBUG': os.environ.get('FLASK_DEBUG'),
+        }
+    })
 
 # database config
 MSSQL_SERVER = 'GREAZUK1DB036P'
@@ -95,11 +115,15 @@ def get_engine():
     return _mssql_engine
 
 
-# App config for deployment
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///timesheet_forecast.db'
+# App config for deployment (ensure writable path on Posit Connect)
+DATA_DIR = os.environ.get('CONNECT_DATA_DIR') or app.instance_path
+os.makedirs(DATA_DIR, exist_ok=True)
+forecast_db = os.path.join(DATA_DIR, 'timesheet_forecast.db')
+current_db = os.path.join(DATA_DIR, 'timesheet_current.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{forecast_db}'
 app.config['SQLALCHEMY_BINDS'] = {
-    'forecast': 'sqlite:///timesheet_forecast.db',
-    'current': 'sqlite:///timesheet_current.db'
+    'forecast': f'sqlite:///{forecast_db}',
+    'current': f'sqlite:///{current_db}'
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -303,20 +327,28 @@ def get_user_email():
     username = None
     
     credentials_header = request.headers.get('Rstudio-Connect-Credentials')
+    logger.info(f"Credentials header present: {bool(credentials_header)}")
+    
     if credentials_header:
         try:
             credentials = json.loads(credentials_header)
             username = credentials.get('user')
+            logger.info(f"Parsed username from credentials: {username}")
         except json.JSONDecodeError:
-            print(f"Failed to parse credentials: {credentials_header}")
+            logger.error(f"Failed to parse credentials: {credentials_header}")
     
     if not username:
         if os.environ.get('FLASK_DEBUG') or app.debug:
-            return request.args.get('user', 'thomas_kiessling@gallagherre.com')
+            fallback = request.args.get('user', 'thomas_kiessling@gallagherre.com')
+            logger.info(f"Debug mode - using fallback user: {fallback}")
+            return fallback
+        logger.warning("No username found and not in debug mode")
         return None
     
     email = lookup_email_by_username(username)
-    return email if email else username
+    result = email if email else username
+    logger.info(f"Final user email: {result}")
+    return result
 
 
 def get_user_name(email):
@@ -388,15 +420,23 @@ def get_direct_reports(email):
 @app.route('/')
 def index():
     """disp main timesheet interface with activity map."""
+    logger.info("=== Index page request ===")
+    logger.info(f"Request headers: {dict(request.headers)}")
+    
     user_email = get_user_email()
     
     if not user_email:
+        logger.error("No user email found - returning 401")
         return "Unable to identify user. Please ensure you are logged in.", 401 # should be 420 instead?
+    
+    logger.info(f"User authenticated: {user_email}")
     
     user_name = get_user_name(user_email)
     default_date = get_next_monday()
     projects = load_active_projects()
     direct_reports = get_direct_reports(user_email)
+    
+    logger.info(f"Rendering page for {user_name} with {len(projects)} projects")
     
     return render_template(
         'index.html',
@@ -540,7 +580,9 @@ def get_outstanding_items():
     note--does not include completed weeksand expired forecasts.
     """
     user_email = get_user_email()
+    logger.info(f"Outstanding items request - user_email: {user_email}")
     if not user_email:
+        logger.warning("Outstanding items: User not authenticated")
         return jsonify({'error': 'User not authenticated'}), 401
     
     today = datetime.now().date()
@@ -597,6 +639,10 @@ def get_outstanding_items():
     
     #  priority sort(missing actuals first, then forecast)
     items.sort(key=lambda x: (x['priority'], x['date']))
+    
+    logger.info(f"Outstanding items: returning {len(items)} items")
+    if items:
+        logger.info(f"First item: {items[0]}")
     
     return jsonify(items)
 
@@ -777,6 +823,20 @@ def init_db():
         db.create_all()
         print("Databases initialized successfully (forecast + current).")
 
+
+# Ensure tables exist once (Flask 3 removed before_first_request)
+_db_initialized = False
+
+def ensure_db_initialized():
+    global _db_initialized
+    if _db_initialized:
+        return
+    with app.app_context():
+        db.create_all()
+    _db_initialized = True
+
+# init db 
+ensure_db_initialized()
 
 if __name__ == '__main__':
     init_db()

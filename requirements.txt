@@ -8,4 +8,4 @@ requests
 urllib3
 pymssql
 pyodbc
-dotenv
+python-dotenv

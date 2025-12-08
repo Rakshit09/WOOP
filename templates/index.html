@@ -743,7 +743,7 @@
                 <div class="flex flex-1 items-center gap-12">
                     <!-- Logo -->
                     <div class="flex flex-col items-center logo-container mr-8">
-                        <img src="/static/logo.png" alt="Gallagher Re Logo" class="h-32 w-auto object-contain" onerror="this.style.display='none'">
+                        <img id="appLogo" src="{{ url_for('static', filename='logo.png') }}" alt="Gallagher Re Logo" class="h-32 w-auto object-contain" onerror="tryAlternativeLogoPath(this)">
                     </div>
 
                     <!-- User & Date Info -->
@@ -996,6 +996,32 @@
     </div>
 
     <script>
+        // Logo fallback for Posit Connect path handling
+        function tryAlternativeLogoPath(img) {
+            const paths = [
+                './static/logo.png',
+                '../static/logo.png', 
+                'static/logo.png',
+                '/static/logo.png'
+            ];
+            
+            let currentIndex = 0;
+            
+            function tryNext() {
+                if (currentIndex < paths.length) {
+                    console.log('Trying logo path:', paths[currentIndex]);
+                    img.src = paths[currentIndex];
+                    currentIndex++;
+                } else {
+                    console.warn('All logo paths failed, hiding logo');
+                    img.style.display = 'none';
+                }
+            }
+            
+            img.onerror = tryNext;
+            tryNext();
+        }
+        
         // State & Configuration
         const projectList = {{ projects | tojson }};
         let rowCounter = 0;
@@ -1022,10 +1048,18 @@
         // Activity Map Functions
         async function loadActivityMap() {
             try {
-                const response = await fetch('/api/activity_map');
-                if (!response.ok) throw new Error('Failed to load activity map');
+                console.log('Loading activity map...');
+                const response = await fetch('api/activity_map');
+                console.log('Activity map response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Activity map error:', errorText);
+                    throw new Error('Failed to load activity map: ' + errorText);
+                }
                 
                 activityMapData = await response.json();
+                console.log('Activity map loaded:', activityMapData.forecasts?.length, 'forecasts,', activityMapData.actuals?.length, 'actuals');
                 requestAnimationFrame(() => renderActivityMap());
             } catch (error) {
                 console.error('Error loading activity map:', error);
@@ -1115,10 +1149,18 @@
         
         async function loadOutstandingItems() {
             try {
-                const response = await fetch('/api/outstanding_items');
-                if (!response.ok) throw new Error('Failed to load outstanding items');
+                console.log('Loading outstanding items...');
+                const response = await fetch('api/outstanding_items');
+                console.log('Outstanding items response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Outstanding items error:', errorText);
+                    throw new Error('Failed to load outstanding items: ' + errorText);
+                }
                 
                 const items = await response.json();
+                console.log('Outstanding items loaded:', items.length, 'items');
                 weekDropdownItems = items; // Store for later use
                 
                 const dropdown = document.getElementById('weekDropdown');
@@ -1197,6 +1239,21 @@
                 
             } catch (error) {
                 console.error('Error loading outstanding items:', error);
+                // Show error state in dropdown
+                const dropdown = document.getElementById('weekDropdown');
+                const trigger = document.getElementById('weekSelectTrigger');
+                if (dropdown) {
+                    dropdown.innerHTML = `<div class="week-dropdown-group">
+                        <div class="week-dropdown-label" style="color: #dc2626;">⚠️ Error Loading Weeks</div>
+                        <div class="week-dropdown-item" style="color: #6b7280; cursor: default; font-size: 12px;">
+                            ${error.message || 'Unable to load weeks. Check console for details.'}
+                        </div>
+                    </div>`;
+                }
+                if (trigger) {
+                    trigger.textContent = 'Error loading weeks';
+                    trigger.classList.add('placeholder');
+                }
             }
         }
 
@@ -1330,7 +1387,7 @@
 
         async function loadEntriesForDate(date, type) {
             try {
-                const response = await fetch(`/api/get_entry?date=${date}&type=${type}`);
+                const response = await fetch(`api/get_entry?date=${date}&type=${type}`);
                 if (!response.ok) throw new Error('Failed to load entries');
                 
                 const data = await response.json();
@@ -1634,7 +1691,7 @@
             try {
                 showToast('Loading last week\'s data...', 'info');
                 
-                const response = await fetch('/api/get_history');
+                const response = await fetch('api/get_history');
                 if (!response.ok) throw new Error('Failed to fetch history');
                 
                 const data = await response.json();
@@ -1697,7 +1754,7 @@
             try {
                 showToast('Submitting timesheet...', 'info');
                 
-                const response = await fetch('/submit', {
+                const response = await fetch('submit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ date: weekDate, type: entryType, rows })
@@ -1772,7 +1829,7 @@
             
             // Load ALL team member maps in PARALLEL for faster loading
             const fetchPromises = directReports.map(report => 
-                fetch(`/api/team_activity_map?member_email=${encodeURIComponent(report.email)}`)
+                fetch(`api/team_activity_map?member_email=${encodeURIComponent(report.email)}`)
                     .then(res => res.ok ? res.json() : null)
                     .then(data => ({ email: report.email, data }))
                     .catch(err => {
@@ -1871,11 +1928,28 @@
 
         // initialization - load everything on page load
         document.addEventListener('DOMContentLoaded', async () => {
+            console.log('=== WOOP App Initializing ===');
+            console.log('Page URL:', window.location.href);
+            
             // add initial row immediately
             addNewRow();
             
+            // Check health endpoint first (for debugging)
+            try {
+                const healthResponse = await fetch('api/health');
+                const healthData = await healthResponse.json();
+                console.log('Health check:', healthData);
+            } catch (e) {
+                console.warn('Health check failed:', e);
+            }
+            
             // load all data in parallel (activity map, week options, and team activity)
-            await Promise.all([loadActivityMap(), loadOutstandingItems(), loadTeamActivityMaps()]);
+            try {
+                await Promise.all([loadActivityMap(), loadOutstandingItems(), loadTeamActivityMaps()]);
+                console.log('=== All data loaded successfully ===');
+            } catch (error) {
+                console.error('Error during initialization:', error);
+            }
         });
 
     </script>
