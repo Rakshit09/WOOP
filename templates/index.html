@@ -195,7 +195,7 @@
             background: #005a9e;
         }
         
-        /* Toast Notification - GPU accelerated */
+        /* Toast Notification - GPU */
         .toast {
             position: fixed;
             bottom: 32px;
@@ -717,6 +717,58 @@
         #teamActivityChevron.collapsed {
             transform: rotate(-90deg);
         }
+        
+        /* Nudge Modal Styles */
+        .nudge-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 31, 63, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        
+        .nudge-modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .nudge-modal {
+            background: white;
+            border-radius: 24px;
+            padding: 2rem;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 25px 80px rgba(0, 31, 63, 0.3);
+            transform: scale(0.9) translateY(20px);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .nudge-modal-overlay.show .nudge-modal {
+            transform: scale(1) translateY(0);
+        }
+        
+        .nudge-art {
+            font-size: 80px;
+            line-height: 1;
+            margin-bottom: 1rem;
+            animation: nudgeBounce 0.6s ease infinite alternate;
+        }
+        
+        @keyframes nudgeBounce {
+            from { transform: translateY(0) rotate(-5deg); }
+            to { transform: translateY(-10px) rotate(5deg); }
+        }
+        
     </style>
 </head>
 <body class="min-h-screen py-8 px-6">
@@ -728,6 +780,19 @@
             </svg>
         </div>
         <span id="toast-message"></span>
+    </div>
+    
+    <!-- Nudge Modal -->
+    <div id="nudgeModal" class="nudge-modal-overlay" onclick="if(event.target === this) closeNudgeModal()">
+        <div class="nudge-modal">
+            <div class="nudge-art" id="nudgeArt">👀</div>
+            <h2 class="text-xl font-bold text-brand-dark mb-2" id="nudgeTitle">You've been nudged!</h2>
+            <p class="text-gray-500 text-sm mb-3" id="nudgeFrom">From: Manager</p>
+            <p class="text-lg text-brand-dark font-medium mb-6" id="nudgeMessage">Your timesheet awaits...</p>
+            <button onclick="dismissCurrentNudge()" class="w-full py-3 bg-gradient-to-r from-brand-blue to-brand-accent text-white font-semibold rounded-xl hover:shadow-lg transition-all">
+                Got it, I'll fill it now! 📝
+            </button>
+        </div>
     </div>
     
     <!-- Main Container - Increased width by 2pts (40px) -->
@@ -979,10 +1044,16 @@
                                 </div>
                             </div>
                             
-                            <!-- % Filled Stats -->
-                            <div class="team-fill-stats text-center flex-shrink-0 w-32">
-                                <div class="text-2xl font-bold text-brand-dark team-fill-percent">--%</div>
-                                <div class="text-xs text-gray-400">Filled</div>
+                            <!-- % Filled Stats + Nudge Button -->
+                            <div class="team-fill-stats text-center flex-shrink-0 flex items-center gap-3">
+                                <div class="w-20">
+                                    <div class="text-2xl font-bold text-brand-dark team-fill-percent">--%</div>
+                                    <div class="text-xs text-gray-400">Filled</div>
+                                </div>
+                                <button class="action-btn flex flex-col items-center justify-center px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-brand-dark w-20" onclick="sendNudge('{{ report.email }}', '{{ report.name }}')" title="Send a friendly reminder">
+                                    <span class="text-2xl leading-none">👉</span>
+                                    <span class="text-xs text-gray-400 font-medium mt-1">Nudge</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1888,14 +1959,14 @@
                 monthSpans.push({ month: currentMonth, startIndex: currentMonthStart, endIndex: data.forecasts.length - 1 });
             }
             
-            // Build all HTML as strings for batch DOM update
+            // HTML as strings for batch DOM update
             const monthLabelsHTML = monthSpans.map(span => {
                 const count = span.endIndex - span.startIndex + 1;
                 const width = (count * cellSize) + ((count - 1) * gapSize);
                 return `<span class="month-label" style="width:${width}px">${monthNames[span.month]}</span>`;
             }).join('');
             
-            // Custom tooltips with styled spans
+            // tooltips
             const forecastHTML = data.forecasts.map(item => 
                 `<div class="activity-cell cell-${item.status} team-cell-readonly"><span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'forecast')}</span></div>`
             ).join('');
@@ -1904,7 +1975,7 @@
                 `<div class="activity-cell cell-${item.status} team-cell-readonly"><span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'actual')}</span></div>`
             ).join('');
             
-            // Batch DOM updates
+            // DOM updates
             monthLabelsRow.innerHTML = monthLabelsHTML;
             forecastRow.innerHTML = forecastHTML;
             actualRow.innerHTML = actualHTML;
@@ -1926,15 +1997,104 @@
             }
         }
 
-        // initialization - load everything on page load
+        // Nudge Functions
+        let pendingNudges = [];
+        let currentNudgeIndex = 0;
+        
+        const nudgeArts = ['👀', '🫵', '😤', '🧚', '🔔', '📢', '🚨', '💪'];
+        
+        async function sendNudge(toEmail, toName) {
+            try {
+                const response = await fetch('api/send_nudge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to_email: toEmail })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast(`Nudge sent to ${toName}! 👉`, 'success');
+                } else {
+                    showToast(result.error || 'Failed to send nudge', 'error');
+                }
+            } catch (error) {
+                console.error('Error sending nudge:', error);
+                showToast('Failed to send nudge', 'error');
+            }
+        }
+        
+        async function checkForNudges() {
+            try {
+                const response = await fetch('api/get_nudges');
+                if (!response.ok) return;
+                
+                const nudges = await response.json();
+                if (nudges.length > 0) {
+                    pendingNudges = nudges;
+                    currentNudgeIndex = 0;
+                    showNudgeModal(nudges[0]);
+                }
+            } catch (error) {
+                console.error('Error checking nudges:', error);
+            }
+        }
+        
+        function showNudgeModal(nudge) {
+            const modal = document.getElementById('nudgeModal');
+            const art = document.getElementById('nudgeArt');
+            const from = document.getElementById('nudgeFrom');
+            const message = document.getElementById('nudgeMessage');
+            
+            art.textContent = nudgeArts[Math.floor(Math.random() * nudgeArts.length)];
+            from.textContent = `From: ${nudge.from_name} • ${nudge.created}`;
+            message.textContent = nudge.message;
+            
+            modal.classList.add('show');
+        }
+        
+        function closeNudgeModal() {
+            const modal = document.getElementById('nudgeModal');
+            modal.classList.remove('show');
+        }
+        
+        async function dismissCurrentNudge() {
+            if (pendingNudges.length === 0) return;
+            
+            const nudge = pendingNudges[currentNudgeIndex];
+            
+            try {
+                await fetch('api/dismiss_nudge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nudge_id: nudge.id })
+                });
+            } catch (error) {
+                console.error('Error dismissing nudge:', error);
+            }
+            
+            currentNudgeIndex++;
+            
+            if (currentNudgeIndex < pendingNudges.length) {
+                // Show next nudge
+                showNudgeModal(pendingNudges[currentNudgeIndex]);
+            } else {
+                // All nudges dismissed
+                closeNudgeModal();
+                pendingNudges = [];
+                currentNudgeIndex = 0;
+            }
+        }
+
+        // init
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('=== WOOP App Initializing ===');
             console.log('Page URL:', window.location.href);
             
-            // add initial row immediately
+            // add initial row
             addNewRow();
             
-            // Check health endpoint first (for debugging)
+            // Check health endpoint 
             try {
                 const healthResponse = await fetch('api/health');
                 const healthData = await healthResponse.json();
@@ -1950,6 +2110,9 @@
             } catch (error) {
                 console.error('Error during initialization:', error);
             }
+            
+            // Check for any nudges after a short delay (let page settle)
+            setTimeout(checkForNudges, 1000);
         });
 
     </script>

@@ -165,6 +165,23 @@ class CurrentEntry(db.Model):
         return f'<CurrentEntry {self.team_member} - {self.survey_id} - {self.assignment}>'
 
 
+class Nudge(db.Model):
+    """Stores nudge messages from managers to team members"""
+    __tablename__ = 'nudge'
+    __bind_key__ = 'current'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    from_email = db.Column(db.String(255), nullable=False, index=True)
+    from_name = db.Column(db.String(255), nullable=False)
+    to_email = db.Column(db.String(255), nullable=False, index=True)
+    message = db.Column(db.Text, nullable=False)
+    created = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    dismissed = db.Column(db.Boolean, default=False, nullable=False)
+    
+    def __repr__(self):
+        return f'<Nudge from {self.from_name} to {self.to_email}>'
+
+
 # date utils
 def get_next_monday():
     """Calculate the date of the upcoming Monday in YYYY-MM-DD style.
@@ -323,7 +340,7 @@ def lookup_email_by_username(username):
 
 
 def get_user_email():
-    """ user email from Posit Connect."""
+    """ user email from Posit """
     username = None
     
     credentials_header = request.headers.get('Rstudio-Connect-Credentials')
@@ -339,10 +356,11 @@ def get_user_email():
     
     if not username:
         if os.environ.get('FLASK_DEBUG') or app.debug:
-            fallback = request.args.get('user', 'thomas_kiessling@gallagherre.com')
+            fallback = request.args.get('user', 'holger_cammerer@gallagherre.com')
+            #fallback = request.args.get('user', 'rakshit_joshi@gallagherre.com')
             logger.info(f"Debug mode - using fallback user: {fallback}")
             return fallback
-        logger.warning("No username found and not in debug mode")
+        logger.warning("No username found")
         return None
     
     email = lookup_email_by_username(username)
@@ -352,7 +370,7 @@ def get_user_email():
 
 
 def get_user_name(email):
-    """Find user's name from dbo.EMEA_team_list table based on email."""
+    """get user name from EMEA_team_list from on email."""
     engine = get_engine()
     
     if engine is None:
@@ -815,6 +833,113 @@ def submit():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/send_nudge', methods=['POST'])
+def send_nudge():
+    """Send a nudge to a team member."""
+    user_email = get_user_email()
+    if not user_email:
+        return jsonify({'error': 'User not authenticated'}), 401
+    
+    data = request.get_json()
+    if not data or not data.get('to_email'):
+        return jsonify({'error': 'Recipient email required'}), 400
+    
+    to_email = data['to_email']
+    
+    # Verify the sender is the manager of this team member
+    direct_reports = get_direct_reports(user_email)
+    is_authorized = any(r['email'].lower() == to_email.lower() for r in direct_reports)
+    
+    if not is_authorized:
+        return jsonify({'error': 'Unauthorized to nudge this team member'}), 403
+    
+    # Get sender's name
+    sender_name = get_user_name(user_email)
+    
+    # Fun nudge messages
+    import random
+    nudge_messages = [
+        "Hey there! Your timesheet is looking a bit lonely... 🥺",
+        "Knock knock! Who's there? Your empty timesheet! 🚪",
+        "Your manager sent a gentle reminder... just kidding, FILL YOUR TIMESHEET! 😤",
+        "The timesheet fairy visited, but left empty-handed. Don't make her sad! 🧚",
+        "Alert: Your timesheet has been spotted in the wild... completely blank! 🔍",
+        "Fun fact: Timesheets don't fill themselves. We checked. Twice. 📊",
+        "Your timesheet misses you. It told us. Awkward. 💔",
+        "Breaking news: Local timesheet remains unfilled. More at 11. 📰",
+    ]
+    
+    message = random.choice(nudge_messages)
+    
+    try:
+        nudge = Nudge(
+            from_email=user_email.lower(),
+            from_name=sender_name,
+            to_email=to_email.lower(),  # Store lowercase for consistent matching
+            message=message
+        )
+        db.session.add(nudge)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Nudge sent successfully!'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/get_nudges')
+def get_nudges():
+    """Get pending nudges for the current user."""
+    user_email = get_user_email()
+    if not user_email:
+        return jsonify({'error': 'User not authenticated'}), 401
+    
+    # Use lowercase for case-insensitive matching
+    nudges = Nudge.query.filter_by(
+        to_email=user_email.lower(),
+        dismissed=False
+    ).order_by(Nudge.created.desc()).all()
+    
+    result = [
+        {
+            'id': nudge.id,
+            'from_name': nudge.from_name,
+            'message': nudge.message,
+            'created': nudge.created.strftime('%b %d at %H:%M')
+        }
+        for nudge in nudges
+    ]
+    
+    return jsonify(result)
+
+
+@app.route('/api/dismiss_nudge', methods=['POST'])
+def dismiss_nudge():
+    """Dismiss a nudge."""
+    user_email = get_user_email()
+    if not user_email:
+        return jsonify({'error': 'User not authenticated'}), 401
+    
+    data = request.get_json()
+    nudge_id = data.get('nudge_id')
+    
+    if not nudge_id:
+        return jsonify({'error': 'Nudge ID required'}), 400
+    
+    nudge = Nudge.query.filter_by(id=nudge_id, to_email=user_email.lower()).first()
+    
+    if not nudge:
+        return jsonify({'error': 'Nudge not found'}), 404
+    
+    nudge.dismissed = True
+    db.session.commit()
+    
+    return jsonify({'success': True})
 
 
 def init_db():
