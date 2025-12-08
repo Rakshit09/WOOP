@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
-# Debug endpoint to check app health
+# check app health
 @app.route('/api/health')
 def health_check():
     """Debug endpoint to check app status."""
@@ -56,7 +56,7 @@ _mssql_engine = None
 def get_mssql_engine():
     """ MSSQL engine using pymssql - will work on Windows and Posit"""
     
-    # Get credentials from environment variables
+    # credentials from env
     username = os.environ.get('MSSQL_USERNAME')
     password = os.environ.get('MSSQL_PASSWORD')
     
@@ -95,7 +95,7 @@ def get_mssql_engine():
             pool_timeout=30,
         )
         
-        # Test the connection
+        # Test 
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         
@@ -108,14 +108,14 @@ def get_mssql_engine():
 
 
 def get_engine():
-    """Get or create the cached MSSQL engine."""
+    """create the cached MSSQL engine"""
     global _mssql_engine
     if _mssql_engine is None:
         _mssql_engine = get_mssql_engine()
     return _mssql_engine
 
 
-# App config for deployment (ensure writable path on Posit Connect)
+# config for deployment
 DATA_DIR = os.environ.get('CONNECT_DATA_DIR') or app.instance_path
 os.makedirs(DATA_DIR, exist_ok=True)
 forecast_db = os.path.join(DATA_DIR, 'timesheet_forecast.db')
@@ -132,7 +132,7 @@ db = SQLAlchemy(app)
 
 # database models
 class ForecastEntry(db.Model):
-    """Stores forecast timesheet entries"""
+    """ forecast timesheet entries"""
     __tablename__ = 'forecast_entry'
     __bind_key__ = 'forecast'
     
@@ -149,7 +149,7 @@ class ForecastEntry(db.Model):
 
 
 class CurrentEntry(db.Model):
-    """Stores actual timesheet entries"""
+    """ actual timesheet entries"""
     __tablename__ = 'current_entry'
     __bind_key__ = 'current'
     
@@ -166,7 +166,7 @@ class CurrentEntry(db.Model):
 
 
 class Nudge(db.Model):
-    """Stores nudge messages from managers to team members"""
+    """save nudge messages from managers to team members"""
     __tablename__ = 'nudge'
     __bind_key__ = 'current'
     
@@ -256,10 +256,10 @@ def get_date_status(date_str, entry_type, has_entry):
     get the status of a cell in the activity map.
     
     Out: 'green', 'red', 'blue', 'gray'
-    - Green: entry exists in DB
-    - Red:missing actual (past Friday without entry)
-    - Blue:next forecast (upcoming Monday for input)
-    - Gray: expired forecast or future actual (disabled)
+    - green: entry exists in DB
+    - red:missing actual (past Friday without entry)
+    - blue:next forecast (upcoming Monday for input)
+    - gray: expired forecast or future actual (disabled)
     """
     today = datetime.now().date()
     date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -286,7 +286,7 @@ def get_date_status(date_str, entry_type, has_entry):
 
 # load projects from MSSQL database
 def load_active_projects():
-    """Load active projects from dbo.projects table in MSSQL."""
+    """ active projects from projects table"""
     engine = get_engine()
     
     if engine is None:
@@ -370,11 +370,11 @@ def get_user_email():
 
 
 def get_user_name(email):
-    """get user name from EMEA_team_list from on email."""
+    """get user name from EMEA_team_list from on email"""
     engine = get_engine()
     
     if engine is None:
-        return email  # Fallback
+        return email  
     
     try:
         query = text("SELECT Title FROM dbo.EMEA_team_list WHERE LOWER(Email) = LOWER(:email)")
@@ -389,14 +389,14 @@ def get_user_name(email):
 
 
 def get_direct_reports(email):
-    """Get direct reports for a user from dbo.EMEA_team_list table based on their email."""
+    """ direct reports for a user EMEA_team_list table based on their email"""
     engine = get_engine()
     
     if engine is None:
         return []
     
     try:
-        # First, get the Reports field for this user
+        # get the Reports field for user
         query = text("SELECT Reports FROM dbo.EMEA_team_list WHERE LOWER(Email) = LOWER(:email)")
         with engine.connect() as conn:
             result = conn.execute(query, {"email": email}).fetchone()
@@ -406,7 +406,7 @@ def get_direct_reports(email):
             
             reports_field = result[0]
             
-            # Handle empty values
+            #  empty values
             if pd.isna(reports_field) or not str(reports_field).strip():
                 return []
             
@@ -416,7 +416,7 @@ def get_direct_reports(email):
             if not report_names:
                 return []
             
-            # Look up each report's email by their Title (name)
+            # report's email by their name
             direct_reports = []
             for name in report_names:
                 lookup_query = text("SELECT Title, Email FROM dbo.EMEA_team_list WHERE LOWER(Title) = LOWER(:name)")
@@ -524,17 +524,17 @@ def get_activity_map():
 
 @app.route('/api/team_activity_map')
 def get_team_activity_map():
-    """Get activity map data for a specific team member (for manager view)."""
+    """ activity map data for a specific team member - only for line managers"""
     user_email = get_user_email()
     if not user_email:
         return jsonify({'error': 'User not authenticated'}), 401
     
-    # Get the requested team member email from query params
+    # Get team member email
     member_email = request.args.get('member_email')
     if not member_email:
         return jsonify({'error': 'Member email required'}), 400
     
-    # Verify that the requesting user is the manager of this team member
+    # requesting user must be the manager 
     direct_reports = get_direct_reports(user_email)
     is_authorized = any(r['email'].lower() == member_email.lower() for r in direct_reports)
     
@@ -544,21 +544,21 @@ def get_team_activity_map():
     mondays = get_mondays_range()
     fridays = get_fridays_range()
     
-    # Get all forecast entries for the team member
+    # all forecast entries for team member
     forecast_entries = ForecastEntry.query.filter_by(team_member=member_email).all()
     forecast_dates = set()
     for entry in forecast_entries:
         date_part = entry.survey_id.split(' ')[0]
         forecast_dates.add(date_part)
     
-    # Get all actual entries for the team member
+    # actual entries for team member
     current_entries = CurrentEntry.query.filter_by(team_member=member_email).all()
     current_dates = set()
     for entry in current_entries:
         date_part = entry.survey_id.split(' ')[0]
         current_dates.add(date_part)
     
-    # Build activity map data
+    # activity map data
     forecast_map = []
     for monday in mondays:
         has_entry = monday in forecast_dates
@@ -655,7 +655,7 @@ def get_outstanding_items():
             'priority': 2
         })
     
-    #  priority sort(missing actuals first, then forecast)
+    #  priority sort
     items.sort(key=lambda x: (x['priority'], x['date']))
     
     logger.info(f"Outstanding items: returning {len(items)} items")
@@ -667,8 +667,7 @@ def get_outstanding_items():
 
 @app.route('/api/get_entry')
 def get_entry():
-    """Get entries for a specific date and type. params: date, type (forecast|actual)
-    """
+    """Get entries for a specific date and type"""
     user_email = get_user_email()
     if not user_email:
         return jsonify({'error': 'User not authenticated'}), 401
@@ -711,7 +710,7 @@ def get_entry():
 
 @app.route('/api/get_history')
 def get_history():
-    """get the most recent timesheet entries for the user (from either DB)."""
+    """get the most recent timesheet entries for the user"""
     user_email = get_user_email()
     
     # try forecast first
@@ -767,7 +766,7 @@ def get_history():
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    """Submit entries for date."""
+    """Submit entries for date"""
     user_email = get_user_email()
     data = request.get_json()
     
@@ -837,7 +836,7 @@ def submit():
 
 @app.route('/api/send_nudge', methods=['POST'])
 def send_nudge():
-    """Send a nudge to a team member."""
+    """to send a nudge to a team member"""
     user_email = get_user_email()
     if not user_email:
         return jsonify({'error': 'User not authenticated'}), 401
@@ -848,7 +847,7 @@ def send_nudge():
     
     to_email = data['to_email']
     
-    # Verify the sender is the manager of this team member
+    # sender is the manager of team member
     direct_reports = get_direct_reports(user_email)
     is_authorized = any(r['email'].lower() == to_email.lower() for r in direct_reports)
     
@@ -858,17 +857,17 @@ def send_nudge():
     # Get sender's name
     sender_name = get_user_name(user_email)
     
-    # Fun nudge messages
+    # nudge messages
     import random
     nudge_messages = [
         "Hey there! Your timesheet is looking a bit lonely... 🥺",
         "Knock knock! Who's there? Your empty timesheet! 🚪",
-        "Your manager sent a gentle reminder... just kidding, FILL YOUR TIMESHEET! 😤",
+        "Your manager sent a gentle reminder..., FILL YOUR TIMESHEET! 😤",
         "The timesheet fairy visited, but left empty-handed. Don't make her sad! 🧚",
         "Alert: Your timesheet has been spotted in the wild... completely blank! 🔍",
         "Fun fact: Timesheets don't fill themselves. We checked. Twice. 📊",
-        "Your timesheet misses you. It told us. Awkward. 💔",
-        "Breaking news: Local timesheet remains unfilled. More at 11. 📰",
+        "Your timesheet misses you 💔",
+        "Your timesheet remains unfilled. You should do something about this 🥺",
     ]
     
     message = random.choice(nudge_messages)
@@ -877,7 +876,7 @@ def send_nudge():
         nudge = Nudge(
             from_email=user_email.lower(),
             from_name=sender_name,
-            to_email=to_email.lower(),  # Store lowercase for consistent matching
+            to_email=to_email.lower(),  # lowercase for matching
             message=message
         )
         db.session.add(nudge)
@@ -899,7 +898,7 @@ def get_nudges():
     if not user_email:
         return jsonify({'error': 'User not authenticated'}), 401
     
-    # Use lowercase for case-insensitive matching
+    # lowercase for matching
     nudges = Nudge.query.filter_by(
         to_email=user_email.lower(),
         dismissed=False
@@ -946,10 +945,10 @@ def init_db():
     """  database init tables for both binds"""
     with app.app_context():
         db.create_all()
-        print("Databases initialized successfully (forecast + current).")
+        print("Databases initialized successfully (forecast + current)")
 
 
-# Ensure tables exist once (Flask 3 removed before_first_request)
+# ensure tables exist 
 _db_initialized = False
 
 def ensure_db_initialized():

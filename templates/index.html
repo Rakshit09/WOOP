@@ -298,10 +298,16 @@
             position: relative;
             height: var(--row-height);
             contain: layout style;
+            z-index: 1;
         }
         
         .timesheet-row:hover {
             background: rgba(0, 120, 212, 0.03);
+        }
+        
+        /* When dropdown is open, raise the row above others */
+        .timesheet-row.dropdown-active {
+            z-index: 1000;
         }
         
         /* Header gradient */
@@ -1503,7 +1509,7 @@
             setTimeout(() => toast.classList.remove('show'), 3500);
         }
 
-        // project dropdown functions - with debouncing
+        // project dropdown functions 
         function createDropdown(inputElement, rowId) {
             // Clear any pending dropdown creation
             if (dropdownDebounceTimer) {
@@ -1511,31 +1517,40 @@
             }
             
             dropdownDebounceTimer = setTimeout(() => {
-                _createDropdownImmediate(inputElement, rowId);
-            }, 50); // Small debounce for typing
+                _createDropdownImmediate(inputElement, rowId, false); 
+            }, 50); // Small debounce 
         }
         
         function createDropdownImmediate(inputElement, rowId) {
             if (dropdownDebounceTimer) {
                 clearTimeout(dropdownDebounceTimer);
             }
-            _createDropdownImmediate(inputElement, rowId);
+            _createDropdownImmediate(inputElement, rowId, true); 
         }
         
-        function _createDropdownImmediate(inputElement, rowId) {
+        function _createDropdownImmediate(inputElement, rowId, showAll = false) {
             closeAllDropdowns();
             
+            // Verify input element is still in DOM 
+            if (!inputElement || !document.body.contains(inputElement)) {
+                return;
+            }
+            
             const wrapper = inputElement.closest('.project-wrapper');
+            if (!wrapper) {
+                return;
+            }
+            
             const dropdown = document.createElement('div');
             dropdown.className = 'custom-dropdown';
             dropdown.id = `dropdown-${rowId}`;
             
-            const filterValue = inputElement.value.toLowerCase().trim();
+            const filterValue = showAll ? '' : inputElement.value.toLowerCase().trim();
             const filteredProjects = projectList.filter(p => 
                 p.toLowerCase().includes(filterValue)
             );
             
-            // Build HTML as string for better performance
+            // Build HTML as string 
             let html = '';
             if (filteredProjects.length === 0) {
                 html = `<div class="dropdown-item" style="color:#94a3b8;cursor:default">
@@ -1545,7 +1560,7 @@
                     No matching projects found
                 </div>`;
             } else {
-                // Limit to first 50 items for performance
+                // Limit to first 50 items 
                 const displayProjects = filteredProjects.slice(0, 50);
                 html = displayProjects.map((project, index) => {
                     let displayText = project;
@@ -1566,7 +1581,7 @@
             
             dropdown.innerHTML = html;
             
-            // Use event delegation for clicks
+            //  event delegation 
             dropdown.addEventListener('click', (e) => {
                 const item = e.target.closest('.dropdown-item');
                 if (item && item.dataset.project) {
@@ -1575,7 +1590,14 @@
             });
             
             wrapper.appendChild(dropdown);
-            activeDropdown = { element: dropdown, input: inputElement, items: filteredProjects };
+            
+            // raise z-index above other rows
+            const parentRow = inputElement.closest('.timesheet-row');
+            if (parentRow) {
+                parentRow.classList.add('dropdown-active');
+            }
+            
+            activeDropdown = { element: dropdown, input: inputElement, items: filteredProjects, row: parentRow };
             highlightedIndex = -1;
         }
 
@@ -1592,7 +1614,16 @@
         }
 
         function closeAllDropdowns() {
-            // Remove immediately without animation for snappier feel
+            if (dropdownDebounceTimer) {
+                clearTimeout(dropdownDebounceTimer);
+                dropdownDebounceTimer = null;
+            }
+            if (activeDropdown && activeDropdown.row) {
+                activeDropdown.row.classList.remove('dropdown-active');
+            }
+            document.querySelectorAll('.timesheet-row.dropdown-active').forEach(row => {
+                row.classList.remove('dropdown-active');
+            });
             document.querySelectorAll('.custom-dropdown').forEach(d => d.remove());
             activeDropdown = null;
             highlightedIndex = -1;
@@ -1646,10 +1677,13 @@
 
         // row management - optimized
         function addNewRow(project = '', days = '', notes = '') {
+            // Close open dropdowns
+            closeAllDropdowns();
+            
             const rowId = `row-${rowCounter++}`;
             const container = document.getElementById('rowsContainer');
             
-            // Escape HTML to prevent XSS
+            //  prevent XSS
             const escapeHtml = (str) => str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             
             const html = `<div id="${rowId}" class="timesheet-grid timesheet-row border-b border-gray-100 row-enter">
@@ -1674,7 +1708,7 @@
             calculateTotal();
         }
         
-        // Debounced calculate total for smoother typing
+        //  calculate total 
         const debouncedCalculateTotal = debounce(calculateTotal, 100);
 
         function handleDaysKeydown(e, rowId) {
@@ -1775,7 +1809,6 @@
                 document.getElementById('rowsContainer').innerHTML = '';
                 rowCounter = 0;
                 
-                // Add all rows at once for better performance
                 data.forEach(entry => {
                         addNewRow(entry.project, entry.days, entry.notes);
                 });
@@ -1873,7 +1906,7 @@
         document.addEventListener('wheel', () => {}, { passive: true });
         document.addEventListener('touchstart', () => {}, { passive: true });
 
-        // Team Activity Map Functions
+        // team Activity Map Functions
         const directReports = {{ direct_reports | tojson | default('[]', true) }};
 
         function toggleTeamActivity() {
@@ -1892,13 +1925,13 @@
 
         async function loadTeamActivityMaps() {
             if (!directReports || directReports.length === 0) {
-                // No direct reports - hide loader, show empty state
+                // No direct reports 
                 const loader = document.getElementById('teamActivityLoader');
                 if (loader) loader.style.display = 'none';
                 return;
             }
             
-            // Load ALL team member maps in PARALLEL for faster loading
+            // Load ALL team member maps 
             const fetchPromises = directReports.map(report => 
                 fetch(`api/team_activity_map?member_email=${encodeURIComponent(report.email)}`)
                     .then(res => res.ok ? res.json() : null)
@@ -2103,7 +2136,7 @@
                 console.warn('Health check failed:', e);
             }
             
-            // load all data in parallel (activity map, week options, and team activity)
+            // load all data in parallel
             try {
                 await Promise.all([loadActivityMap(), loadOutstandingItems(), loadTeamActivityMaps()]);
                 console.log('=== All data loaded successfully ===');
@@ -2111,7 +2144,7 @@
                 console.error('Error during initialization:', error);
             }
             
-            // Check for any nudges after a short delay (let page settle)
+            // Check for any nudges 
             setTimeout(checkForNudges, 1000);
         });
 
