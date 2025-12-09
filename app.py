@@ -15,6 +15,9 @@ import urllib.parse
 import json
 import os
 import logging
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -432,6 +435,156 @@ def get_direct_reports(email):
     except Exception as e:
         logger.error(f"Error getting direct reports: {e}")
         return []
+
+
+def get_all_team_members():
+    """Get all team members from EMEA_team_list with their emails."""
+    engine = get_engine()
+    
+    if engine is None:
+        return []
+    
+    try:
+        query = text("SELECT Title, Email FROM dbo.EMEA_team_list WHERE Email IS NOT NULL")
+        with engine.connect() as conn:
+            result = conn.execute(query).fetchall()
+            return [{'name': row[0], 'email': row[1]} for row in result]
+    except Exception as e:
+        logger.error(f"Error getting all team members: {e}")
+        return []
+
+
+def send_reminder_email(to_email, subject, body, send='False'):
+    """Send a reminder email using SMTP."""
+
+    if send == 'False':
+        logger.info(f"Email reminders disabled. Would send to {to_email}: {subject}")
+        return True  
+    
+    smtp_server = os.environ.get('SMTP_SERVER', 'smtp.office365.com')
+    smtp_port = int(os.environ.get('SMTP_PORT', 587))
+    smtp_user = os.environ.get('SMTP_USER')
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+    from_email = os.environ.get('SMTP_FROM', smtp_user)
+    
+    if not smtp_user or not smtp_password:
+        logger.warning(f"SMTP credentials not configured. Would send to {to_email}: {subject}")
+        return False
+    
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = from_email
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'html'))
+        
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+        
+        logger.info(f"Reminder email sent to {to_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {e}")
+        return False
+
+
+@app.route('/api/send_reminders', methods=['POST'])
+def send_reminders():
+    """
+    Send reminder emails to team members who haven't filled in their timesheets.
+    Call this endpoint:
+    - Friday 3pm: to remind about forecast for next week
+    - Monday 11am: to remind about actuals for last week
+    
+    Pass ?type=forecast or ?type=actual to specify which reminder to send.
+    """
+    reminder_type = request.args.get('type', 'both')
+    
+    # Optional API key check for security
+    api_key = request.headers.get('X-API-Key')
+    expected_key = os.environ.get('REMINDER_API_KEY')
+    if expected_key and api_key != expected_key:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    team_members = get_all_team_members()
+    if not team_members:
+        return jsonify({'error': 'Could not fetch team members'}), 500
+    
+    results = {'forecast_reminders': [], 'actual_reminders': []}
+    
+    # Forecast reminder (for next Monday)
+    if reminder_type in ['forecast', 'both']:
+        next_monday = get_next_monday()
+        forecast_survey_id = f"{next_monday} (Forecast)"
+        
+        for member in team_members:
+            email = member['email']
+            # Check if forecast exists
+            entry = ForecastEntry.query.filter_by(
+                team_member=email,
+                survey_id=forecast_survey_id
+            ).first()
+            
+            if not entry:
+                subject = "WOOP Reminder: Forecast Not Submitted"
+                body = f"""
+                <html>
+                <body>
+                <p>Hi {member['name']},</p>
+                <p>This is a friendly reminder that your <strong>forecast</strong> for the week commencing <strong>{next_monday}</strong> has not been submitted yet.</p>
+                <p>Please submit your forecast as soon as possible.</p>
+                <p>Thank you!</p>
+                </body>
+                </html>
+                """
+                sent = send_reminder_email(email, subject, body)
+                results['forecast_reminders'].append({
+                    'email': email,
+                    'name': member['name'],
+                    'sent': sent
+                })
+    
+    # Actual reminder (for last Friday)
+    if reminder_type in ['actual', 'both']:
+        last_friday = get_last_friday()
+        actual_survey_id = f"{last_friday} (Actual)"
+        
+        for member in team_members:
+            email = member['email']
+            # Check if actual exists
+            entry = CurrentEntry.query.filter_by(
+                team_member=email,
+                survey_id=actual_survey_id
+            ).first()
+            
+            if not entry:
+                week_commencing = (datetime.strptime(last_friday, '%Y-%m-%d').date() - timedelta(days=4)).strftime('%Y-%m-%d')
+                subject = "WOOP Reminder: Actuals Not Submitted"
+                body = f"""
+                <html>
+                <body>
+                <p>Hi {member['name']},</p>
+                <p>This is a friendly reminder that your <strong>actuals</strong> for the week commencing <strong>{week_commencing}</strong> have not been submitted yet.</p>
+                <p>Please submit your actuals as soon as possible.</p>
+                <p>Thank you!</p>
+                </body>
+                </html>
+                """
+                sent = send_reminder_email(email, subject, body)
+                results['actual_reminders'].append({
+                    'email': email,
+                    'name': member['name'],
+                    'sent': sent
+                })
+    
+    return jsonify({
+        'success': True,
+        'results': results,
+        'forecast_count': len(results['forecast_reminders']),
+        'actual_count': len(results['actual_reminders'])
+    })
 
 
 # main Routes
