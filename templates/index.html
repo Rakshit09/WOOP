@@ -724,6 +724,262 @@
             transform: rotate(-90deg);
         }
         
+        /* Stacked Bar Chart Styles - Modern Design */
+        .stacked-bar-container {
+            margin-top: 1.25rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid rgba(0, 31, 63, 0.04);
+        }
+        
+        .stacked-bar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        
+        .stacked-bar-label {
+            font-size: 12px;
+            color: #475569;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stacked-bar-label::before {
+            content: '';
+            width: 3px;
+            height: 14px;
+            background: linear-gradient(135deg, #0078D4, #00A3E0);
+            border-radius: 2px;
+        }
+        
+        .stacked-bar-total {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        
+        .stacked-bar-wrapper {
+            position: relative;
+            padding: 4px;
+            background: linear-gradient(135deg, rgba(0, 31, 63, 0.02) 0%, rgba(0, 31, 63, 0.04) 100%);
+            border-radius: 16px;
+            box-shadow: inset 0 1px 2px rgba(0, 31, 63, 0.06);
+        }
+        
+        .stacked-bar {
+            display: flex;
+            height: 32px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            box-shadow: inset 0 1px 3px rgba(0, 31, 63, 0.08);
+        }
+        
+        .stacked-bar-segment {
+            height: 100%;
+            position: relative;
+            min-width: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: left center;
+            animation: segmentSlideIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            opacity: 0;
+            transform: scaleX(0);
+        }
+        
+        @keyframes segmentSlideIn {
+            to {
+                opacity: 1;
+                transform: scaleX(1);
+            }
+        }
+        
+        .stacked-bar-segment::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0) 100%);
+            pointer-events: none;
+        }
+        
+        .stacked-bar-segment:first-child {
+            border-radius: 10px 0 0 10px;
+        }
+        
+        .stacked-bar-segment:last-child {
+            border-radius: 0 10px 10px 0;
+        }
+        
+        .stacked-bar-segment:only-child {
+            border-radius: 10px;
+        }
+        
+        .stacked-bar-segment:hover {
+            filter: brightness(1.08);
+            transform: scaleY(1.06);
+            z-index: 10;
+        }
+        
+        .stacked-bar-segment.dimmed {
+            opacity: 0.35;
+            filter: grayscale(0.3);
+        }
+        
+        .stacked-bar-segment.highlighted {
+            filter: brightness(1.1);
+            transform: scaleY(1.08);
+            z-index: 10;
+        }
+        
+        .segment-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 6px;
+            letter-spacing: 0.02em;
+        }
+        
+        .stacked-bar-segment .bar-tooltip {
+            position: absolute;
+            bottom: calc(100% + 12px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            padding: 10px 14px;
+            background: linear-gradient(135deg, #0a1628 0%, #001F3F 100%);
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: 10px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 9999;
+            pointer-events: none;
+            box-shadow: 0 8px 24px rgba(0, 31, 63, 0.25), 0 0 0 1px rgba(255,255,255,0.1) inset;
+            backdrop-filter: blur(8px);
+        }
+        
+        .bar-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #001F3F;
+        }
+        
+        .tooltip-project {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 4px;
+            color: #fff;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .tooltip-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.75);
+        }
+        
+        .tooltip-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .tooltip-stat-value {
+            font-weight: 700;
+            color: #00A3E0;
+        }
+        
+        .stacked-bar-segment:hover .bar-tooltip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        .stacked-bar-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 10px;
+            margin-top: 14px;
+            padding: 10px 12px;
+            background: linear-gradient(135deg, rgba(0, 31, 63, 0.015) 0%, rgba(0, 31, 63, 0.03) 100%);
+            border-radius: 10px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 11px;
+            color: #475569;
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            background: transparent;
+        }
+        
+        .legend-item:hover {
+            background: rgba(0, 120, 212, 0.08);
+            color: #0078D4;
+        }
+        
+        .legend-item.active {
+            background: rgba(0, 120, 212, 0.12);
+            color: #0078D4;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.2);
+            transition: transform 0.2s ease;
+        }
+        
+        .legend-item:hover .legend-color {
+            transform: scale(1.15);
+        }
+        
+        .legend-percentage {
+            font-size: 10px;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-left: 2px;
+        }
+        
+        .legend-more {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 500;
+            font-style: italic;
+            padding: 5px 10px;
+        }
+        
         /* Nudge Modal Styles */
         .nudge-modal-overlay {
             position: fixed;
@@ -989,6 +1245,18 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Project Breakdown Stacked Bar -->
+            <div id="myProjectBreakdown" class="stacked-bar-container px-6">
+                <div class="stacked-bar-header">
+                    <div class="stacked-bar-label">Tasks/Projects Breakdown</div>
+                    <div id="myStackedTotal" class="stacked-bar-total"></div>
+                </div>
+                <div class="stacked-bar-wrapper">
+                <div id="myStackedBar" class="stacked-bar"></div>
+                </div>
+                <div id="myStackedLegend" class="stacked-bar-legend"></div>
+            </div>
         </div>
 
         {% if direct_reports and direct_reports|length > 0 %}
@@ -1061,6 +1329,18 @@
                                     <span class="text-xs text-gray-400 font-medium mt-1">Nudge</span>
                                 </button>
                             </div>
+                        </div>
+                        
+                        <!-- Team Member Project Breakdown Stacked Bar -->
+                        <div class="stacked-bar-container team-project-breakdown px-6">
+                            <div class="stacked-bar-header">
+                                <div class="stacked-bar-label">Tasks/Projects Breakdown</div>
+                                <div class="team-stacked-total stacked-bar-total"></div>
+                            </div>
+                            <div class="stacked-bar-wrapper">
+                                <div class="team-stacked-bar stacked-bar"></div>
+                            </div>
+                            <div class="team-stacked-legend stacked-bar-legend"></div>
                         </div>
                     </div>
                     {% endfor %}
@@ -1214,6 +1494,218 @@
                 gray: type === 'forecast' ? 'Expired' : 'Locked'
             };
             return labels[status] || status;
+        }
+
+        // Project Breakdown Stacked Bar Chart - Enhanced Design
+        const barGradients = [
+            { base: '#0078D4', gradient: 'linear-gradient(135deg, #0078D4 0%, #00A3E0 100%)' },
+            { base: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' },
+            { base: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)' },
+            { base: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)' },
+            { base: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)' },
+            { base: '#ec4899', gradient: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)' },
+            { base: '#06b6d4', gradient: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%)' },
+            { base: '#84cc16', gradient: 'linear-gradient(135deg, #84cc16 0%, #a3e635 100%)' },
+            { base: '#f97316', gradient: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)' },
+            { base: '#6366f1', gradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)' },
+            { base: '#14b8a6', gradient: 'linear-gradient(135deg, #14b8a6 0%, #2dd4bf 100%)' },
+            { base: '#a855f7', gradient: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)' },
+        ];
+
+        async function loadMyProjectBreakdown() {
+            try {
+                const response = await fetch('api/project_breakdown');
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                renderStackedBar('myStackedBar', 'myStackedLegend', data.breakdown);
+            } catch (error) {
+                console.error('Error loading project breakdown:', error);
+            }
+        }
+
+        function renderStackedBar(barId, legendId, breakdown) {
+            const barEl = document.getElementById(barId);
+            const legendEl = document.getElementById(legendId);
+            const totalEl = document.getElementById(barId.replace('StackedBar', 'StackedTotal'));
+            
+            if (!barEl || !legendEl || !breakdown || breakdown.length === 0) {
+                if (barEl) barEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px 12px;text-align:center;font-style:italic;">No project data available</div>';
+                if (totalEl) totalEl.textContent = '';
+                return;
+            }
+            
+            // Calculate total days
+            const totalDays = breakdown.reduce((sum, item) => sum + item.days, 0);
+            if (totalEl) totalEl.textContent = `${totalDays} days total • ${breakdown.length} projects`;
+            
+            // Build bar segments with staggered animation
+            let barHTML = '';
+            breakdown.forEach((item, index) => {
+                const colorSet = barGradients[index % barGradients.length];
+                const shortName = item.project.length > 25 ? item.project.substring(0, 25) + '...' : item.project;
+                const showLabel = item.percentage >= 12;
+                const animDelay = index * 0.08;
+                
+                barHTML += `<div class="stacked-bar-segment" 
+                    data-index="${index}"
+                    style="width:${item.percentage}%;background:${colorSet.gradient};animation-delay:${animDelay}s">
+                    ${showLabel ? `<span class="segment-label">${Math.round(item.percentage)}%</span>` : ''}
+                    <span class="bar-tooltip">
+                        <div class="tooltip-project">${shortName}</div>
+                        <div class="tooltip-stats">
+                            <span class="tooltip-stat"><span class="tooltip-stat-value">${item.days}</span> days</span>
+                            <span class="tooltip-stat"><span class="tooltip-stat-value">${item.percentage}%</span> share</span>
+                        </div>
+                    </span>
+                </div>`;
+            });
+            barEl.innerHTML = barHTML;
+            
+            // Build interactive legend
+            const maxLegendItems = 8;
+            let legendHTML = '';
+            breakdown.slice(0, maxLegendItems).forEach((item, index) => {
+                const colorSet = barGradients[index % barGradients.length];
+                const shortName = item.project.length > 20 ? item.project.substring(0, 20) + '...' : item.project;
+                legendHTML += `<div class="legend-item" data-index="${index}">
+                    <div class="legend-color" style="background:${colorSet.gradient}"></div>
+                    <span>${shortName}</span>
+                    <span class="legend-percentage">${item.percentage}%</span>
+                </div>`;
+            });
+            if (breakdown.length > maxLegendItems) {
+                legendHTML += `<div class="legend-more">+${breakdown.length - maxLegendItems} more projects</div>`;
+            }
+            legendEl.innerHTML = legendHTML;
+            
+            // Add hover interactions between legend and bar
+            setupLegendBarInteraction(barEl, legendEl);
+        }
+        
+        function setupLegendBarInteraction(barEl, legendEl) {
+            const legendItems = legendEl.querySelectorAll('.legend-item[data-index]');
+            const segments = barEl.querySelectorAll('.stacked-bar-segment[data-index]');
+            
+            legendItems.forEach(item => {
+                const index = item.dataset.index;
+                
+                item.addEventListener('mouseenter', () => {
+                    segments.forEach(seg => {
+                        if (seg.dataset.index === index) {
+                            seg.classList.add('highlighted');
+                        } else {
+                            seg.classList.add('dimmed');
+                        }
+                    });
+                    item.classList.add('active');
+                });
+                
+                item.addEventListener('mouseleave', () => {
+                    segments.forEach(seg => {
+                        seg.classList.remove('highlighted', 'dimmed');
+                    });
+                    item.classList.remove('active');
+                });
+            });
+            
+            segments.forEach(seg => {
+                const index = seg.dataset.index;
+                
+                seg.addEventListener('mouseenter', () => {
+                    legendItems.forEach(item => {
+                        if (item.dataset.index === index) {
+                            item.classList.add('active');
+                        }
+                    });
+                });
+                
+                seg.addEventListener('mouseleave', () => {
+                    legendItems.forEach(item => {
+                        item.classList.remove('active');
+                    });
+                });
+            });
+        }
+
+        async function loadTeamMemberProjectBreakdown(email, memberContainer) {
+            try {
+                const response = await fetch(`api/project_breakdown?email=${encodeURIComponent(email)}`);
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                const barEl = memberContainer.querySelector('.team-stacked-bar');
+                const legendEl = memberContainer.querySelector('.team-stacked-legend');
+                
+                if (barEl && legendEl) {
+                    renderStackedBarElement(barEl, legendEl, data.breakdown);
+                }
+            } catch (error) {
+                console.error(`Error loading project breakdown for ${email}:`, error);
+            }
+        }
+
+        function renderStackedBarElement(barEl, legendEl, breakdown, totalEl = null) {
+            // Try to find the total element from the parent container
+            if (!totalEl && barEl) {
+                const container = barEl.closest('.stacked-bar-container');
+                if (container) {
+                    totalEl = container.querySelector('.stacked-bar-total');
+                }
+            }
+            
+            if (!barEl || !legendEl || !breakdown || breakdown.length === 0) {
+                if (barEl) barEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px 12px;text-align:center;font-style:italic;">No project data available</div>';
+                if (totalEl) totalEl.textContent = '';
+                return;
+            }
+            
+            // Calculate total days
+            const totalDays = breakdown.reduce((sum, item) => sum + item.days, 0);
+            if (totalEl) totalEl.textContent = `${totalDays} days total • ${breakdown.length} projects`;
+            
+            // Build bar segments with staggered animation
+            let barHTML = '';
+            breakdown.forEach((item, index) => {
+                const colorSet = barGradients[index % barGradients.length];
+                const shortName = item.project.length > 25 ? item.project.substring(0, 25) + '...' : item.project;
+                const showLabel = item.percentage >= 12;
+                const animDelay = index * 0.08;
+                
+                barHTML += `<div class="stacked-bar-segment" 
+                    data-index="${index}"
+                    style="width:${item.percentage}%;background:${colorSet.gradient};animation-delay:${animDelay}s">
+                    ${showLabel ? `<span class="segment-label">${Math.round(item.percentage)}%</span>` : ''}
+                    <span class="bar-tooltip">
+                        <div class="tooltip-project">${shortName}</div>
+                        <div class="tooltip-stats">
+                            <span class="tooltip-stat"><span class="tooltip-stat-value">${item.days}</span> days</span>
+                            <span class="tooltip-stat"><span class="tooltip-stat-value">${item.percentage}%</span> share</span>
+                        </div>
+                    </span>
+                </div>`;
+            });
+            barEl.innerHTML = barHTML;
+            
+            // Build interactive legend
+            const maxLegendItems = 8;
+            let legendHTML = '';
+            breakdown.slice(0, maxLegendItems).forEach((item, index) => {
+                const colorSet = barGradients[index % barGradients.length];
+                const shortName = item.project.length > 20 ? item.project.substring(0, 20) + '...' : item.project;
+                legendHTML += `<div class="legend-item" data-index="${index}">
+                    <div class="legend-color" style="background:${colorSet.gradient}"></div>
+                    <span>${shortName}</span>
+                    <span class="legend-percentage">${item.percentage}%</span>
+                </div>`;
+            });
+            if (breakdown.length > maxLegendItems) {
+                legendHTML += `<div class="legend-more">+${breakdown.length - maxLegendItems} more projects</div>`;
+            }
+            legendEl.innerHTML = legendHTML;
+            
+            // Add hover interactions between legend and bar
+            setupLegendBarInteraction(barEl, legendEl);
         }
 
         function formatDateLabel(dateStr) {
@@ -1951,6 +2443,14 @@
                 }
             });
             
+            // Load project breakdowns for each team member
+            directReports.forEach(report => {
+                const memberContainer = document.querySelector(`.team-member-activity[data-email="${report.email}"]`);
+                if (memberContainer) {
+                    loadTeamMemberProjectBreakdown(report.email, memberContainer);
+                }
+            });
+            
             // Hide loader, show maps
             const loader = document.getElementById('teamActivityLoader');
             const mapsContainer = document.getElementById('teamActivityMaps');
@@ -2138,7 +2638,7 @@
             
             // load all data in parallel
             try {
-                await Promise.all([loadActivityMap(), loadOutstandingItems(), loadTeamActivityMaps()]);
+                await Promise.all([loadActivityMap(), loadOutstandingItems(), loadTeamActivityMaps(), loadMyProjectBreakdown()]);
                 console.log('=== All data loaded successfully ===');
             } catch (error) {
                 console.error('Error during initialization:', error);

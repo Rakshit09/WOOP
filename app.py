@@ -358,8 +358,8 @@ def get_user_email():
     
     if not username:
         if os.environ.get('FLASK_DEBUG') or app.debug:
-            #fallback = request.args.get('user', 'holger_cammerer@gallagherre.com')
-            fallback = request.args.get('user', 'rakshit_joshi@gallagherre.com')
+            fallback = request.args.get('user', 'holger_cammerer@gallagherre.com')
+            #fallback = request.args.get('user', 'rakshit_joshi@gallagherre.com')
             logger.info(f"Debug mode - using fallback user: {fallback}")
             return fallback
         logger.warning("No username found")
