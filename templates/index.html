@@ -728,7 +728,6 @@
         .stacked-bar-container {
             margin-top: 1.25rem;
             padding-top: 1.25rem;
-            border-top: 1px solid rgba(0, 31, 63, 0.04);
         }
         
         .stacked-bar-header {
@@ -764,16 +763,16 @@
         
         .stacked-bar-wrapper {
             position: relative;
-            padding: 4px;
+            padding: 2px;
             background: linear-gradient(135deg, rgba(0, 31, 63, 0.02) 0%, rgba(0, 31, 63, 0.04) 100%);
-            border-radius: 16px;
+            border-radius: 2px;
             box-shadow: inset 0 1px 2px rgba(0, 31, 63, 0.06);
         }
         
         .stacked-bar {
             display: flex;
-            height: 32px;
-            border-radius: 12px;
+            height: 28px;
+            border-radius: 2px;
             overflow: hidden;
             background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
             box-shadow: inset 0 1px 3px rgba(0, 31, 63, 0.08);
@@ -813,15 +812,15 @@
         }
         
         .stacked-bar-segment:first-child {
-            border-radius: 10px 0 0 10px;
+            border-radius: 2px 0 0 2px;
         }
         
         .stacked-bar-segment:last-child {
-            border-radius: 0 10px 10px 0;
+            border-radius: 0 2px 2px 0;
         }
         
         .stacked-bar-segment:only-child {
-            border-radius: 10px;
+            border-radius: 2px;
         }
         
         .stacked-bar-segment:hover {
@@ -842,15 +841,16 @@
         }
         
         .segment-label {
-            font-size: 10px;
-            font-weight: 700;
+            font-size: 9px;
+            font-weight: 600;
             color: rgba(255, 255, 255, 0.95);
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            padding: 0 6px;
-            letter-spacing: 0.02em;
+            padding: 0 4px;
+            letter-spacing: 0.01em;
+            max-width: 100%;
         }
         
         .stacked-bar-segment .bar-tooltip {
@@ -889,9 +889,9 @@
             font-size: 13px;
             margin-bottom: 4px;
             color: #fff;
-            max-width: 200px;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            max-width: 300px;
+            word-wrap: break-word;
+            white-space: normal;
         }
         
         .tooltip-stats {
@@ -919,65 +919,35 @@
         }
         
         .stacked-bar-legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px 10px;
-            margin-top: 14px;
-            padding: 10px 12px;
-            background: linear-gradient(135deg, rgba(0, 31, 63, 0.015) 0%, rgba(0, 31, 63, 0.03) 100%);
-            border-radius: 10px;
+            display: none;
         }
         
         .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: 11px;
-            color: #475569;
-            padding: 5px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-weight: 500;
-            background: transparent;
+            display: none;
         }
         
         .legend-item:hover {
-            background: rgba(0, 120, 212, 0.08);
-            color: #0078D4;
+            display: none;
         }
         
         .legend-item.active {
-            background: rgba(0, 120, 212, 0.12);
-            color: #0078D4;
+            display: none;
         }
         
         .legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 4px;
-            flex-shrink: 0;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.2);
-            transition: transform 0.2s ease;
+            display: none;
         }
         
         .legend-item:hover .legend-color {
-            transform: scale(1.15);
+            display: none;
         }
         
         .legend-percentage {
-            font-size: 10px;
-            font-weight: 600;
-            color: #94a3b8;
-            margin-left: 2px;
+            display: none;
         }
         
         .legend-more {
-            font-size: 11px;
-            color: #94a3b8;
-            font-weight: 500;
-            font-style: italic;
-            padding: 5px 10px;
+            display: none;
         }
         
         /* Nudge Modal Styles */
@@ -1496,20 +1466,20 @@
             return labels[status] || status;
         }
 
-        // Project Breakdown Stacked Bar Chart - Enhanced Design
+        // Project Breakdown Stacked Bar Chart - Matte Blue Palette
         const barGradients = [
-            { base: '#0078D4', gradient: 'linear-gradient(135deg, #0078D4 0%, #00A3E0 100%)' },
-            { base: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' },
-            { base: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)' },
-            { base: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)' },
-            { base: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)' },
-            { base: '#ec4899', gradient: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)' },
-            { base: '#06b6d4', gradient: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%)' },
-            { base: '#84cc16', gradient: 'linear-gradient(135deg, #84cc16 0%, #a3e635 100%)' },
-            { base: '#f97316', gradient: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)' },
-            { base: '#6366f1', gradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)' },
-            { base: '#14b8a6', gradient: 'linear-gradient(135deg, #14b8a6 0%, #2dd4bf 100%)' },
-            { base: '#a855f7', gradient: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)' },
+            { base: '#1e3a5f', gradient: '#1e3a5f' },  // Deep navy
+            { base: '#2d5a87', gradient: '#2d5a87' },  // Steel blue
+            { base: '#4a7c9b', gradient: '#4a7c9b' },  // Slate blue
+            { base: '#6b9dbd', gradient: '#6b9dbd' },  // Dusty blue
+            { base: '#8bb8d4', gradient: '#8bb8d4' },  // Powder blue
+            { base: '#3d6b8f', gradient: '#3d6b8f' },  // Ocean blue
+            { base: '#527d9a', gradient: '#527d9a' },  // Denim blue
+            { base: '#7094ab', gradient: '#7094ab' },  // Cadet blue
+            { base: '#2c4a6e', gradient: '#2c4a6e' },  // Prussian blue
+            { base: '#4e7a9e', gradient: '#4e7a9e' },  // Air force blue
+            { base: '#5d8aa8', gradient: '#5d8aa8' },  // Wedgwood blue
+            { base: '#3b628c', gradient: '#3b628c' },  // Teal blue
         ];
 
         async function loadMyProjectBreakdown() {
@@ -1539,20 +1509,23 @@
             const totalDays = breakdown.reduce((sum, item) => sum + item.days, 0);
             if (totalEl) totalEl.textContent = `${totalDays} days total • ${breakdown.length} projects`;
             
-            // Build bar segments with staggered animation
+            // Build bar segments with staggered animation - show project names inside
             let barHTML = '';
             breakdown.forEach((item, index) => {
                 const colorSet = barGradients[index % barGradients.length];
-                const shortName = item.project.length > 25 ? item.project.substring(0, 25) + '...' : item.project;
-                const showLabel = item.percentage >= 12;
                 const animDelay = index * 0.08;
+                // Calculate max chars based on percentage (roughly 1 char per 1.5% width)
+                const maxChars = Math.max(3, Math.floor(item.percentage / 1.8));
+                const displayName = item.project.length > maxChars ? item.project.substring(0, maxChars) + '…' : item.project;
+                const showLabel = item.percentage >= 5;
                 
                 barHTML += `<div class="stacked-bar-segment" 
                     data-index="${index}"
+                    title="${item.project} - ${item.days} days (${item.percentage}%)"
                     style="width:${item.percentage}%;background:${colorSet.gradient};animation-delay:${animDelay}s">
-                    ${showLabel ? `<span class="segment-label">${Math.round(item.percentage)}%</span>` : ''}
+                    ${showLabel ? `<span class="segment-label">${displayName}</span>` : ''}
                     <span class="bar-tooltip">
-                        <div class="tooltip-project">${shortName}</div>
+                        <div class="tooltip-project">${item.project}</div>
                         <div class="tooltip-stats">
                             <span class="tooltip-stat"><span class="tooltip-stat-value">${item.days}</span> days</span>
                             <span class="tooltip-stat"><span class="tooltip-stat-value">${item.percentage}%</span> share</span>
@@ -1562,70 +1535,8 @@
             });
             barEl.innerHTML = barHTML;
             
-            // Build interactive legend
-            const maxLegendItems = 8;
-            let legendHTML = '';
-            breakdown.slice(0, maxLegendItems).forEach((item, index) => {
-                const colorSet = barGradients[index % barGradients.length];
-                const shortName = item.project.length > 20 ? item.project.substring(0, 20) + '...' : item.project;
-                legendHTML += `<div class="legend-item" data-index="${index}">
-                    <div class="legend-color" style="background:${colorSet.gradient}"></div>
-                    <span>${shortName}</span>
-                    <span class="legend-percentage">${item.percentage}%</span>
-                </div>`;
-            });
-            if (breakdown.length > maxLegendItems) {
-                legendHTML += `<div class="legend-more">+${breakdown.length - maxLegendItems} more projects</div>`;
-            }
-            legendEl.innerHTML = legendHTML;
-            
-            // Add hover interactions between legend and bar
-            setupLegendBarInteraction(barEl, legendEl);
-        }
-        
-        function setupLegendBarInteraction(barEl, legendEl) {
-            const legendItems = legendEl.querySelectorAll('.legend-item[data-index]');
-            const segments = barEl.querySelectorAll('.stacked-bar-segment[data-index]');
-            
-            legendItems.forEach(item => {
-                const index = item.dataset.index;
-                
-                item.addEventListener('mouseenter', () => {
-                    segments.forEach(seg => {
-                        if (seg.dataset.index === index) {
-                            seg.classList.add('highlighted');
-                        } else {
-                            seg.classList.add('dimmed');
-                        }
-                    });
-                    item.classList.add('active');
-                });
-                
-                item.addEventListener('mouseleave', () => {
-                    segments.forEach(seg => {
-                        seg.classList.remove('highlighted', 'dimmed');
-                    });
-                    item.classList.remove('active');
-                });
-            });
-            
-            segments.forEach(seg => {
-                const index = seg.dataset.index;
-                
-                seg.addEventListener('mouseenter', () => {
-                    legendItems.forEach(item => {
-                        if (item.dataset.index === index) {
-                            item.classList.add('active');
-                        }
-                    });
-                });
-                
-                seg.addEventListener('mouseleave', () => {
-                    legendItems.forEach(item => {
-                        item.classList.remove('active');
-                    });
-                });
-            });
+            // Legend is now hidden - no need to populate
+            legendEl.innerHTML = '';
         }
 
         async function loadTeamMemberProjectBreakdown(email, memberContainer) {
@@ -1664,20 +1575,23 @@
             const totalDays = breakdown.reduce((sum, item) => sum + item.days, 0);
             if (totalEl) totalEl.textContent = `${totalDays} days total • ${breakdown.length} projects`;
             
-            // Build bar segments with staggered animation
+            // Build bar segments with staggered animation - show project names inside
             let barHTML = '';
             breakdown.forEach((item, index) => {
                 const colorSet = barGradients[index % barGradients.length];
-                const shortName = item.project.length > 25 ? item.project.substring(0, 25) + '...' : item.project;
-                const showLabel = item.percentage >= 12;
                 const animDelay = index * 0.08;
+                // Calculate max chars based on percentage (roughly 1 char per 1.8% width)
+                const maxChars = Math.max(3, Math.floor(item.percentage / 1.8));
+                const displayName = item.project.length > maxChars ? item.project.substring(0, maxChars) + '…' : item.project;
+                const showLabel = item.percentage >= 5;
                 
                 barHTML += `<div class="stacked-bar-segment" 
                     data-index="${index}"
+                    title="${item.project} - ${item.days} days (${item.percentage}%)"
                     style="width:${item.percentage}%;background:${colorSet.gradient};animation-delay:${animDelay}s">
-                    ${showLabel ? `<span class="segment-label">${Math.round(item.percentage)}%</span>` : ''}
+                    ${showLabel ? `<span class="segment-label">${displayName}</span>` : ''}
                     <span class="bar-tooltip">
-                        <div class="tooltip-project">${shortName}</div>
+                        <div class="tooltip-project">${item.project}</div>
                         <div class="tooltip-stats">
                             <span class="tooltip-stat"><span class="tooltip-stat-value">${item.days}</span> days</span>
                             <span class="tooltip-stat"><span class="tooltip-stat-value">${item.percentage}%</span> share</span>
@@ -1687,25 +1601,8 @@
             });
             barEl.innerHTML = barHTML;
             
-            // Build interactive legend
-            const maxLegendItems = 8;
-            let legendHTML = '';
-            breakdown.slice(0, maxLegendItems).forEach((item, index) => {
-                const colorSet = barGradients[index % barGradients.length];
-                const shortName = item.project.length > 20 ? item.project.substring(0, 20) + '...' : item.project;
-                legendHTML += `<div class="legend-item" data-index="${index}">
-                    <div class="legend-color" style="background:${colorSet.gradient}"></div>
-                    <span>${shortName}</span>
-                    <span class="legend-percentage">${item.percentage}%</span>
-                </div>`;
-            });
-            if (breakdown.length > maxLegendItems) {
-                legendHTML += `<div class="legend-more">+${breakdown.length - maxLegendItems} more projects</div>`;
-            }
-            legendEl.innerHTML = legendHTML;
-            
-            // Add hover interactions between legend and bar
-            setupLegendBarInteraction(barEl, legendEl);
+            // Legend is now hidden - no need to populate
+            legendEl.innerHTML = '';
         }
 
         function formatDateLabel(dateStr) {
