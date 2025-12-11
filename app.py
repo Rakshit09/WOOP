@@ -140,15 +140,15 @@ class ForecastEntry(db.Model):
     __bind_key__ = 'forecast'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    survey_id = db.Column(db.String(50), nullable=False, index=True)  # "YYYY-MM-DD style forecast"
-    team_member = db.Column(db.String(255), nullable=False, index=True)
-    assignment = db.Column(db.String(255), nullable=False)
-    days_allocated = db.Column(db.Float, nullable=False)
+    activity_week = db.Column(db.String(50), nullable=False, index=True)  # "YYYY-MM-DD style forecast"
+    colleague = db.Column(db.String(255), nullable=False, index=True)
+    assignment_ID = db.Column(db.String(255), nullable=False)  # connects to ProjectID in projects table
+    allocation_days = db.Column(db.Float, nullable=False)
     notes = db.Column(db.Text, nullable=True)
-    modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    record_created = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     
     def __repr__(self):
-        return f'<ForecastEntry {self.team_member} - {self.survey_id} - {self.assignment}>'
+        return f'<ForecastEntry {self.colleague} - {self.activity_week} - {self.assignment_ID}>'
 
 
 class CurrentEntry(db.Model):
@@ -157,15 +157,15 @@ class CurrentEntry(db.Model):
     __bind_key__ = 'current'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    survey_id = db.Column(db.String(50), nullable=False, index=True)  # "YYYY-MM-DD (Actual)"
-    team_member = db.Column(db.String(255), nullable=False, index=True)
-    assignment = db.Column(db.String(255), nullable=False)
-    days_allocated = db.Column(db.Float, nullable=False)
+    activity_week = db.Column(db.String(50), nullable=False, index=True)  # "YYYY-MM-DD (Actual)"
+    colleague = db.Column(db.String(255), nullable=False, index=True)
+    assignment_ID = db.Column(db.String(255), nullable=False)  # connects to ProjectID in projects table
+    allocation_days = db.Column(db.Float, nullable=False)
     notes = db.Column(db.Text, nullable=True)
-    modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    record_created = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     
     def __repr__(self):
-        return f'<CurrentEntry {self.team_member} - {self.survey_id} - {self.assignment}>'
+        return f'<CurrentEntry {self.colleague} - {self.activity_week} - {self.assignment_ID}>'
 
 
 class Nudge(db.Model):
@@ -516,14 +516,14 @@ def send_reminders():
     # Forecast reminder (for next Monday)
     if reminder_type in ['forecast', 'both']:
         next_monday = get_next_monday()
-        forecast_survey_id = f"{next_monday} (Forecast)"
+        forecast_activity_week = f"{next_monday} (Forecast)"
         
         for member in team_members:
             email = member['email']
             # Check if forecast exists
             entry = ForecastEntry.query.filter_by(
-                team_member=email,
-                survey_id=forecast_survey_id
+                colleague=email,
+                activity_week=forecast_activity_week
             ).first()
             
             if not entry:
@@ -548,14 +548,14 @@ def send_reminders():
     # Actual reminder (for last Friday)
     if reminder_type in ['actual', 'both']:
         last_friday = get_last_friday()
-        actual_survey_id = f"{last_friday} (Actual)"
+        actual_activity_week = f"{last_friday} (Actual)"
         
         for member in team_members:
             email = member['email']
             # Check if actual exists
             entry = CurrentEntry.query.filter_by(
-                team_member=email,
-                survey_id=actual_survey_id
+                colleague=email,
+                activity_week=actual_activity_week
             ).first()
             
             if not entry:
@@ -629,18 +629,18 @@ def get_activity_map():
     fridays = get_fridays_range()
     
     # get all forecast entries
-    forecast_entries = ForecastEntry.query.filter_by(team_member=user_email).all()
+    forecast_entries = ForecastEntry.query.filter_by(colleague=user_email).all()
     forecast_dates = set()
     for entry in forecast_entries:
         # extract date "YYYY-MM-DD (Forecast)"
-        date_part = entry.survey_id.split(' ')[0]
+        date_part = entry.activity_week.split(' ')[0]
         forecast_dates.add(date_part)
     
     # get all actual entries
-    current_entries = CurrentEntry.query.filter_by(team_member=user_email).all()
+    current_entries = CurrentEntry.query.filter_by(colleague=user_email).all()
     current_dates = set()
     for entry in current_entries:
-        date_part = entry.survey_id.split(' ')[0]
+        date_part = entry.activity_week.split(' ')[0]
         current_dates.add(date_part)
     
     # build activity map data
@@ -674,6 +674,45 @@ def get_activity_map():
     })
 
 
+@app.route('/api/project_breakdown')
+def get_project_breakdown():
+    """Get project/task breakdown for a user (for stacked bar chart)."""
+    user_email = request.args.get('email')
+    if not user_email:
+        user_email = get_user_email()
+    if not user_email:
+        return jsonify({'error': 'User not authenticated'}), 401
+    
+    # Get all actual entries for this user (current year)
+    current_entries = CurrentEntry.query.filter_by(colleague=user_email).all()
+    
+    # Aggregate by project
+    project_totals = {}
+    for entry in current_entries:
+        project = entry.assignment_ID
+        if project not in project_totals:
+            project_totals[project] = 0
+        project_totals[project] += entry.allocation_days
+    
+    # Sort by total days descending
+    sorted_projects = sorted(project_totals.items(), key=lambda x: x[1], reverse=True)
+    
+    # Calculate total and percentages
+    total_days = sum(project_totals.values())
+    breakdown = []
+    for project, days in sorted_projects:
+        breakdown.append({
+            'project': project,
+            'days': round(days, 1),
+            'percentage': round((days / total_days * 100), 1) if total_days > 0 else 0
+        })
+    
+    return jsonify({
+        'breakdown': breakdown,
+        'total_days': round(total_days, 1)
+    })
+
+
 @app.route('/api/team_activity_map')
 def get_team_activity_map():
     """ activity map data for a specific team member - only for line managers"""
@@ -697,17 +736,17 @@ def get_team_activity_map():
     fridays = get_fridays_range()
     
     # all forecast entries for team member
-    forecast_entries = ForecastEntry.query.filter_by(team_member=member_email).all()
+    forecast_entries = ForecastEntry.query.filter_by(colleague=member_email).all()
     forecast_dates = set()
     for entry in forecast_entries:
-        date_part = entry.survey_id.split(' ')[0]
+        date_part = entry.activity_week.split(' ')[0]
         forecast_dates.add(date_part)
     
     # actual entries for team member
-    current_entries = CurrentEntry.query.filter_by(team_member=member_email).all()
+    current_entries = CurrentEntry.query.filter_by(colleague=member_email).all()
     current_dates = set()
     for entry in current_entries:
-        date_part = entry.survey_id.split(' ')[0]
+        date_part = entry.activity_week.split(' ')[0]
         current_dates.add(date_part)
     
     # activity map data
@@ -759,10 +798,10 @@ def get_outstanding_items():
     items = []
     
     # Get existing entries
-    current_entries = CurrentEntry.query.filter_by(team_member=user_email).all()
+    current_entries = CurrentEntry.query.filter_by(colleague=user_email).all()
     current_dates = set()
     for entry in current_entries:
-        date_part = entry.survey_id.split(' ')[0]
+        date_part = entry.activity_week.split(' ')[0]
         current_dates.add(date_part)
     
     # Check past Fridaysfor missing actuals
@@ -789,10 +828,10 @@ def get_outstanding_items():
     next_monday_date = datetime.strptime(next_monday, '%Y-%m-%d').date()
     
     # check if forecast already exists for next monday
-    forecast_entries = ForecastEntry.query.filter_by(team_member=user_email).all()
+    forecast_entries = ForecastEntry.query.filter_by(colleague=user_email).all()
     forecast_dates = set()
     for entry in forecast_entries:
-        date_part = entry.survey_id.split(' ')[0]
+        date_part = entry.activity_week.split(' ')[0]
         forecast_dates.add(date_part)
     
     if next_monday not in forecast_dates:
@@ -831,22 +870,22 @@ def get_entry():
         return jsonify({'error': 'Date required'}), 400
     
     if entry_type == 'forecast':
-        survey_id = f"{date} (Forecast)"
+        activity_week = f"{date} (Forecast)"
         entries = ForecastEntry.query.filter_by(
-            team_member=user_email,
-            survey_id=survey_id
+            colleague=user_email,
+            activity_week=activity_week
         ).all()
     else:
-        survey_id = f"{date} (Actual)"
+        activity_week = f"{date} (Actual)"
         entries = CurrentEntry.query.filter_by(
-            team_member=user_email,
-            survey_id=survey_id
+            colleague=user_email,
+            activity_week=activity_week
         ).all()
     
     result = [
         {
-            'project': entry.assignment,
-            'days': entry.days_allocated,
+            'project': entry.assignment_ID,
+            'days': entry.allocation_days,
             'notes': entry.notes or ''
         }
         for entry in entries
@@ -866,15 +905,15 @@ def get_history():
     user_email = get_user_email()
     
     # try forecast first
-    most_recent_forecast = db.session.query(ForecastEntry.survey_id, ForecastEntry.modified)\
-        .filter_by(team_member=user_email)\
-        .order_by(ForecastEntry.modified.desc())\
+    most_recent_forecast = db.session.query(ForecastEntry.activity_week, ForecastEntry.record_created)\
+        .filter_by(colleague=user_email)\
+        .order_by(ForecastEntry.record_created.desc())\
         .first()
     
     # try current/actual
-    most_recent_current = db.session.query(CurrentEntry.survey_id, CurrentEntry.modified)\
-        .filter_by(team_member=user_email)\
-        .order_by(CurrentEntry.modified.desc())\
+    most_recent_current = db.session.query(CurrentEntry.activity_week, CurrentEntry.record_created)\
+        .filter_by(colleague=user_email)\
+        .order_by(CurrentEntry.record_created.desc())\
         .first()
     
     # find which is more recent
@@ -882,23 +921,23 @@ def get_history():
     if most_recent_forecast and most_recent_current:
         if most_recent_forecast[1] > most_recent_current[1]:
             entries = ForecastEntry.query.filter_by(
-                team_member=user_email,
-                survey_id=most_recent_forecast[0]
+                colleague=user_email,
+                activity_week=most_recent_forecast[0]
             ).all()
         else:
             entries = CurrentEntry.query.filter_by(
-                team_member=user_email,
-                survey_id=most_recent_current[0]
+                colleague=user_email,
+                activity_week=most_recent_current[0]
             ).all()
     elif most_recent_forecast:
         entries = ForecastEntry.query.filter_by(
-            team_member=user_email,
-            survey_id=most_recent_forecast[0]
+            colleague=user_email,
+            activity_week=most_recent_forecast[0]
         ).all()
     elif most_recent_current:
         entries = CurrentEntry.query.filter_by(
-            team_member=user_email,
-            survey_id=most_recent_current[0]
+            colleague=user_email,
+            activity_week=most_recent_current[0]
         ).all()
     
     if not entries:
@@ -906,8 +945,8 @@ def get_history():
     
     result = [
         {
-            'project': entry.assignment,
-            'days': entry.days_allocated,
+            'project': entry.assignment_ID,
+            'days': entry.allocation_days,
             'notes': entry.notes or ''
         }
         for entry in entries
@@ -941,21 +980,21 @@ def submit():
         if date_obj < today and date_obj != next_monday:
             return jsonify({'error': 'Cannot submit forecast for expired week'}), 400
         
-        survey_id = f"{selected_date} (Forecast)"
+        activity_week = f"{selected_date} (Forecast)"
         Model = ForecastEntry
     else:
         # Actuals: Cannot fill future Fridays
         if date_obj > today:
             return jsonify({'error': 'Cannot submit actuals for future week'}), 400
         
-        survey_id = f"{selected_date} (Actual)"
+        activity_week = f"{selected_date} (Actual)"
         Model = CurrentEntry
     
     try:
         # Delete existing entries 
         Model.query.filter_by(
-            team_member=user_email,
-            survey_id=survey_id
+            colleague=user_email,
+            activity_week=activity_week
         ).delete()
         
         # Add new entries
@@ -966,10 +1005,10 @@ def submit():
             
             if project and days is not None and days > 0:
                 entry = Model(
-                    survey_id=survey_id,
-                    team_member=user_email,
-                    assignment=project,
-                    days_allocated=float(days),
+                    activity_week=activity_week,
+                    colleague=user_email,
+                    assignment_ID=project,
+                    allocation_days=float(days),
                     notes=notes if notes else None
                 )
                 db.session.add(entry)
@@ -978,7 +1017,7 @@ def submit():
         
         return jsonify({
             'success': True,
-            'message': f'Timesheet submitted successfully for {survey_id}'
+            'message': f'Timesheet submitted successfully for {activity_week}'
         })
     
     except Exception as e:
