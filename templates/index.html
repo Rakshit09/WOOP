@@ -638,12 +638,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 4rem;
+            gap: 2rem;
             width: 100%;
             overflow-x: auto;
             overflow-y: visible;
-            padding: 1.5rem 0;
-            padding-left: 8rem;
+            padding: 1.5rem 2rem;
         }
         
         .month-label {
@@ -1001,6 +1000,104 @@
             to { transform: translateY(-10px) rotate(5deg); }
         }
         
+        /* Donut Chart Styles */
+        .donut-chart-container {
+            width: 140px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .donut-chart-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .donut-chart-wrapper {
+            position: relative;
+            width: 100px;
+            height: 100px;
+        }
+        
+        .donut-chart-svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+        
+        .donut-segment {
+            fill: none;
+            stroke-width: 15;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: center;
+        }
+        
+        .donut-segment:hover {
+            stroke-width: 20;
+            filter: brightness(1.1);
+        }
+        
+        .donut-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: none;
+            pointer-events: none;
+        }
+        
+        .donut-center-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0a2540;
+            line-height: 1;
+        }
+        
+        .donut-center-label {
+            font-size: 9px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-top: 2px;
+        }
+        
+        .donut-tooltip {
+            position: absolute;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #0a1628 0%, #001F3F 100%);
+            color: white;
+            font-size: 11px;
+            font-weight: 500;
+            border-radius: 8px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 9999;
+            pointer-events: none;
+            box-shadow: 0 8px 24px rgba(0, 31, 63, 0.25);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .donut-tooltip.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .donut-empty {
+            fill: none;
+            stroke: #e2e8f0;
+            stroke-width: 15;
+        }
+        
     </style>
 </head>
 <body class="min-h-screen py-8 px-6">
@@ -1171,6 +1268,22 @@
             
             <!-- Activity Grid with Legend -->
             <div class="activity-map-container">
+                <!-- Donut Chart - Project Breakdown -->
+                <div class="donut-chart-container">
+                    <div class="donut-chart-title">Projects</div>
+                    <div class="donut-chart-wrapper">
+                        <svg id="myDonutChart" class="donut-chart-svg" viewBox="0 0 100 100">
+                            <!-- Segments injected by JS -->
+                            <circle class="donut-empty" cx="50" cy="50" r="42"></circle>
+                        </svg>
+                        <div class="donut-center">
+                            <div id="donutCenterValue" class="donut-center-value">0</div>
+                            <div class="donut-center-label">Days</div>
+                        </div>
+                        <div id="donutTooltip" class="donut-tooltip"></div>
+                    </div>
+                </div>
+                
                 <!-- Grid -->
                 <div class="space-y-1.5 flex-shrink-0">
                     <!-- Month Labels Row -->
@@ -1215,18 +1328,6 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Project Breakdown Stacked Bar -->
-            <div id="myProjectBreakdown" class="stacked-bar-container px-6">
-                <div class="stacked-bar-header">
-                    <div class="stacked-bar-label">Tasks/Projects Breakdown</div>
-                    <div id="myStackedTotal" class="stacked-bar-total"></div>
-                </div>
-                <div class="stacked-bar-wrapper">
-                <div id="myStackedBar" class="stacked-bar"></div>
-                </div>
-                <div id="myStackedLegend" class="stacked-bar-legend"></div>
-            </div>
         </div>
 
         {% if direct_reports and direct_reports|length > 0 %}
@@ -1270,6 +1371,21 @@
                         </div>
                         
                         <div class="activity-map-container">
+                            <!-- Donut Chart - Team Member Project Breakdown -->
+                            <div class="donut-chart-container team-donut-container">
+                                <div class="donut-chart-title">Projects</div>
+                                <div class="donut-chart-wrapper">
+                                    <svg class="donut-chart-svg team-donut-chart" viewBox="0 0 100 100">
+                                        <circle class="donut-empty" cx="50" cy="50" r="42"></circle>
+                                    </svg>
+                                    <div class="donut-center">
+                                        <div class="donut-center-value team-donut-value">0</div>
+                                        <div class="donut-center-label">Days</div>
+                                    </div>
+                                    <div class="donut-tooltip team-donut-tooltip"></div>
+                                </div>
+                            </div>
+                            
                             <!-- Grid -->
                             <div class="space-y-1.5 flex-shrink-0">
                                 <!-- Month Labels Row -->
@@ -1299,18 +1415,6 @@
                                     <span class="text-xs text-gray-400 font-medium mt-1">Nudge</span>
                                 </button>
                             </div>
-                        </div>
-                        
-                        <!-- Team Member Project Breakdown Stacked Bar -->
-                        <div class="stacked-bar-container team-project-breakdown px-6">
-                            <div class="stacked-bar-header">
-                                <div class="stacked-bar-label">Tasks/Projects Breakdown</div>
-                                <div class="team-stacked-total stacked-bar-total"></div>
-                            </div>
-                            <div class="stacked-bar-wrapper">
-                                <div class="team-stacked-bar stacked-bar"></div>
-                            </div>
-                            <div class="team-stacked-legend stacked-bar-legend"></div>
                         </div>
                     </div>
                     {% endfor %}
@@ -1466,32 +1570,86 @@
             return labels[status] || status;
         }
 
-        // Project Breakdown Stacked Bar Chart - Matte Blue Palette
+        // Project Breakdown Donut Chart - ColorBrewer Greys9 Palette
         const barGradients = [
-            { base: '#1e3a5f', gradient: '#1e3a5f' },  // Deep navy
-            { base: '#2d5a87', gradient: '#2d5a87' },  // Steel blue
-            { base: '#4a7c9b', gradient: '#4a7c9b' },  // Slate blue
-            { base: '#6b9dbd', gradient: '#6b9dbd' },  // Dusty blue
-            { base: '#8bb8d4', gradient: '#8bb8d4' },  // Powder blue
-            { base: '#3d6b8f', gradient: '#3d6b8f' },  // Ocean blue
-            { base: '#527d9a', gradient: '#527d9a' },  // Denim blue
-            { base: '#7094ab', gradient: '#7094ab' },  // Cadet blue
-            { base: '#2c4a6e', gradient: '#2c4a6e' },  // Prussian blue
-            { base: '#4e7a9e', gradient: '#4e7a9e' },  // Air force blue
-            { base: '#5d8aa8', gradient: '#5d8aa8' },  // Wedgwood blue
-            { base: '#3b628c', gradient: '#3b628c' },  // Teal blue
+            { base: '#e3f2fd', gradient: '#e3f2fd' },  // Very light blue
+            { base: '#bbdefb', gradient: '#bbdefb' },  // Light blue
+            { base: '#90caf9', gradient: '#90caf9' },  // Soft blue
+            { base: '#64b5f6', gradient: '#64b5f6' },  // Medium-light blue
+            { base: '#42a5f5', gradient: '#42a5f5' },  // Medium blue
+            { base: '#2196f3', gradient: '#2196f3' },  // Vibrant blue
+            { base: '#1e88e5', gradient: '#1e88e5' },  // Medium-dark blue
+            { base: '#1976d2', gradient: '#1976d2' },  // Deeper blue
+            { base: '#1565c0', gradient: '#1565c0' },  // Dark blue
         ];
-
-        async function loadMyProjectBreakdown() {
+                async function loadMyProjectBreakdown() {
             try {
                 const response = await fetch('api/project_breakdown');
                 if (!response.ok) return;
                 
                 const data = await response.json();
-                renderStackedBar('myStackedBar', 'myStackedLegend', data.breakdown);
+                renderDonutChart(data.breakdown);
             } catch (error) {
                 console.error('Error loading project breakdown:', error);
             }
+        }
+
+        function renderDonutChart(breakdown) {
+            const svg = document.getElementById('myDonutChart');
+            const centerValue = document.getElementById('donutCenterValue');
+            const tooltip = document.getElementById('donutTooltip');
+            
+            if (!svg || !breakdown || breakdown.length === 0) {
+                if (centerValue) centerValue.textContent = '0';
+                return;
+            }
+            
+            // Calculate total days
+            const totalDays = breakdown.reduce((sum, item) => sum + item.days, 0);
+            if (centerValue) centerValue.textContent = totalDays;
+            
+            // SVG donut parameters
+            const cx = 50, cy = 50, r = 42;
+            const circumference = 2 * Math.PI * r;
+            
+            // Clear previous segments (keep the empty circle as fallback)
+            const existingSegments = svg.querySelectorAll('.donut-segment');
+            existingSegments.forEach(seg => seg.remove());
+            
+            // Build donut segments
+            let cumulativePercent = 0;
+            breakdown.forEach((item, index) => {
+                const color = barGradients[index % barGradients.length].base;
+                const percent = item.percentage / 100;
+                const dashLength = percent * circumference;
+                const dashOffset = -cumulativePercent * circumference;
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.classList.add('donut-segment');
+                circle.setAttribute('cx', cx);
+                circle.setAttribute('cy', cy);
+                circle.setAttribute('r', r);
+                circle.setAttribute('stroke', color);
+                circle.setAttribute('stroke-dasharray', `${dashLength} ${circumference - dashLength}`);
+                circle.setAttribute('stroke-dashoffset', dashOffset);
+                circle.style.animationDelay = `${index * 0.1}s`;
+                
+                // Tooltip events
+                circle.addEventListener('mouseenter', () => {
+                    tooltip.innerHTML = `<strong>${item.project}</strong><br>${item.days} days (${item.percentage}%)`;
+                    tooltip.classList.add('show');
+                });
+                circle.addEventListener('mouseleave', () => {
+                    tooltip.classList.remove('show');
+                });
+                
+                svg.appendChild(circle);
+                cumulativePercent += percent;
+            });
+            
+            // Hide empty circle if we have data
+            const emptyCircle = svg.querySelector('.donut-empty');
+            if (emptyCircle) emptyCircle.style.display = breakdown.length > 0 ? 'none' : 'block';
         }
 
         function renderStackedBar(barId, legendId, breakdown) {
@@ -1545,15 +1703,72 @@
                 if (!response.ok) return;
                 
                 const data = await response.json();
-                const barEl = memberContainer.querySelector('.team-stacked-bar');
-                const legendEl = memberContainer.querySelector('.team-stacked-legend');
+                const svg = memberContainer.querySelector('.team-donut-chart');
+                const centerValue = memberContainer.querySelector('.team-donut-value');
+                const tooltip = memberContainer.querySelector('.team-donut-tooltip');
                 
-                if (barEl && legendEl) {
-                    renderStackedBarElement(barEl, legendEl, data.breakdown);
+                if (svg) {
+                    renderTeamDonutChart(svg, centerValue, tooltip, data.breakdown);
                 }
             } catch (error) {
                 console.error(`Error loading project breakdown for ${email}:`, error);
             }
+        }
+
+        function renderTeamDonutChart(svg, centerValue, tooltip, breakdown) {
+            if (!svg || !breakdown || breakdown.length === 0) {
+                if (centerValue) centerValue.textContent = '0';
+                return;
+            }
+            
+            // Calculate total days
+            const totalDays = breakdown.reduce((sum, item) => sum + item.days, 0);
+            if (centerValue) centerValue.textContent = totalDays;
+            
+            // SVG donut parameters
+            const cx = 50, cy = 50, r = 42;
+            const circumference = 2 * Math.PI * r;
+            
+            // Clear previous segments (keep the empty circle as fallback)
+            const existingSegments = svg.querySelectorAll('.donut-segment');
+            existingSegments.forEach(seg => seg.remove());
+            
+            // Build donut segments
+            let cumulativePercent = 0;
+            breakdown.forEach((item, index) => {
+                const color = barGradients[index % barGradients.length].base;
+                const percent = item.percentage / 100;
+                const dashLength = percent * circumference;
+                const dashOffset = -cumulativePercent * circumference;
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.classList.add('donut-segment');
+                circle.setAttribute('cx', cx);
+                circle.setAttribute('cy', cy);
+                circle.setAttribute('r', r);
+                circle.setAttribute('stroke', color);
+                circle.setAttribute('stroke-dasharray', `${dashLength} ${circumference - dashLength}`);
+                circle.setAttribute('stroke-dashoffset', dashOffset);
+                circle.style.animationDelay = `${index * 0.1}s`;
+                
+                // Tooltip events
+                if (tooltip) {
+                    circle.addEventListener('mouseenter', () => {
+                        tooltip.innerHTML = `<strong>${item.project}</strong><br>${item.days} days (${item.percentage}%)`;
+                        tooltip.classList.add('show');
+                    });
+                    circle.addEventListener('mouseleave', () => {
+                        tooltip.classList.remove('show');
+                    });
+                }
+                
+                svg.appendChild(circle);
+                cumulativePercent += percent;
+            });
+            
+            // Hide empty circle if we have data
+            const emptyCircle = svg.querySelector('.donut-empty');
+            if (emptyCircle) emptyCircle.style.display = breakdown.length > 0 ? 'none' : 'block';
         }
 
         function renderStackedBarElement(barEl, legendEl, breakdown, totalEl = null) {
