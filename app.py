@@ -361,6 +361,7 @@ def get_most_recent_entry_mssql(colleague):
         return None, None
     
     try:
+        colleague_name = get_colleague_name_from_email(colleague)
         with engine.connect() as conn:
             results = {}
             for entry_type, table in [('forecast', 'activity_forecast'), ('actual', 'activity_actual')]:
@@ -368,10 +369,10 @@ def get_most_recent_entry_mssql(colleague):
                     text(f"""
                         SELECT TOP 1 CAST(activity_week AS DATE), record_created
                         FROM dbo.{table} 
-                        WHERE colleague = :colleague 
+                        WHERE (LOWER(colleague) = LOWER(:colleague_email) OR LOWER(colleague) = LOWER(:colleague_name))
                         ORDER BY record_created DESC
                     """),
-                    {'colleague': colleague}
+                    {'colleague_email': colleague, 'colleague_name': colleague_name}
                 ).fetchone()
                 if result:
                     results[entry_type] = result
@@ -380,7 +381,9 @@ def get_most_recent_entry_mssql(colleague):
                 return None, None
             
             if len(results) == 2:
-                return max(results.items(), key=lambda x: x[1][1])
+                # results: {entry_type: (activity_week, record_created)}
+                entry_type, data = max(results.items(), key=lambda x: x[1][1])
+                return entry_type, data[0]
             
             entry_type, data = next(iter(results.items()))
             return entry_type, data[0]
