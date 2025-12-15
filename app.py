@@ -6,7 +6,7 @@ from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from functools import lru_cache
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, func
 from sqlalchemy.engine import URL
 import pandas as pd
 import requests
@@ -676,15 +676,17 @@ def get_activity_map():
 
 @app.route('/api/project_breakdown')
 def get_project_breakdown():
-    """Get project/task breakdown for a user (for stacked bar chart)."""
+    """Get project/task breakdown for a user (for donut chart)."""
     user_email = request.args.get('email')
     if not user_email:
         user_email = get_user_email()
     if not user_email:
         return jsonify({'error': 'User not authenticated'}), 401
     
-    # Get all actual entries for this user (current year)
-    current_entries = CurrentEntry.query.filter_by(colleague=user_email).all()
+    # Get all actual entries for this user (case-insensitive email match)
+    current_entries = CurrentEntry.query.filter(
+        func.lower(CurrentEntry.colleague) == user_email.lower()
+    ).all()
     
     # Aggregate by project
     project_totals = {}
@@ -735,15 +737,19 @@ def get_team_activity_map():
     mondays = get_mondays_range()
     fridays = get_fridays_range()
     
-    # all forecast entries for team member
-    forecast_entries = ForecastEntry.query.filter_by(colleague=member_email).all()
+    # all forecast entries for team member (case-insensitive email match)
+    forecast_entries = ForecastEntry.query.filter(
+        func.lower(ForecastEntry.colleague) == member_email.lower()
+    ).all()
     forecast_dates = set()
     for entry in forecast_entries:
         date_part = entry.activity_week.split(' ')[0]
         forecast_dates.add(date_part)
     
-    # actual entries for team member
-    current_entries = CurrentEntry.query.filter_by(colleague=member_email).all()
+    # actual entries for team member (case-insensitive email match)
+    current_entries = CurrentEntry.query.filter(
+        func.lower(CurrentEntry.colleague) == member_email.lower()
+    ).all()
     current_dates = set()
     for entry in current_entries:
         date_part = entry.activity_week.split(' ')[0]
