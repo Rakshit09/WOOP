@@ -980,8 +980,12 @@ async function submitForm() {
         
         if (response.ok) {
             showToast('Timesheet submitted successfully!', 'success');
-            // Refresh activity map and outstanding items
-            await Promise.all([loadActivityMap(), loadOutstandingItems()]);
+            // Refresh activity map/outstanding items + donut chart (donut is based on actuals breakdown)
+            await Promise.all([
+                loadActivityMap(),
+                loadOutstandingItems(),
+                entryType === 'actual' ? loadMyProjectBreakdown() : Promise.resolve()
+            ]);
         } else {
             showToast(result.error || 'Submit failed', 'error');
         }
