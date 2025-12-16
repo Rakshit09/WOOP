@@ -311,6 +311,21 @@ def save_activity_entries(table_name, colleague_email, activity_week, rows):
 
     try:
         with engine.begin() as conn:
+            # DELETE EXISTING ENTRIES FIRST for the same activity week and colleague - used in modifying submitted entries
+            conn.execute(
+                text(f"""
+                    DELETE FROM {table_name}
+                    WHERE CAST(activity_week AS DATE) = CAST(:activity_week AS DATE)
+                    AND (LOWER(colleague) = LOWER(:colleague_email) 
+                         OR LOWER(colleague) = LOWER(:colleague_name))"""),
+                {
+                    'activity_week': activity_week_str,
+                    'colleague_email': colleague_email,
+                    'colleague_name': colleague_name,
+                }
+            )
+            
+            # insert new entries
             for row in rows:
                 project = row.get('project', '').strip()
                 days = row.get('days')
@@ -329,8 +344,7 @@ def save_activity_entries(table_name, colleague_email, activity_week, rows):
                         INSERT INTO {table_name} 
                         (activity_week, colleague, assignment_ID, allocation_days, notes, record_created)
                         VALUES (CONVERT(date, :activity_week), :colleague, :assignment_ID, 
-                                :allocation_days, :notes, :record_created)
-                    """),
+                                :allocation_days, :notes, :record_created)"""),
                     {
                         'activity_week': activity_week_str,
                         'colleague': colleague_name,
@@ -370,8 +384,7 @@ def get_most_recent_entry_mssql(colleague):
                         SELECT TOP 1 CAST(activity_week AS DATE), record_created
                         FROM dbo.{table} 
                         WHERE (LOWER(colleague) = LOWER(:colleague_email) OR LOWER(colleague) = LOWER(:colleague_name))
-                        ORDER BY record_created DESC
-                    """),
+                        ORDER BY record_created DESC"""),
                     {'colleague_email': colleague, 'colleague_name': colleague_name}
                 ).fetchone()
                 if result:
