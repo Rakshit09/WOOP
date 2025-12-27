@@ -99,6 +99,43 @@ async function loadActivityMap() {
     }
 }
 
+function highlightActivityCell(date, type) {
+    if (!activityMapData) return;
+
+    // 1. Remove highlight from ALL cells (both rows)
+    document.querySelectorAll('.activity-cell.highlighted').forEach(cell => {
+        cell.classList.remove('highlighted');
+    });
+    
+    // 2. Identify the correct row
+    const rowId = type === 'forecast' ? 'forecastRow' : 'actualRow';
+    const row = document.getElementById(rowId);
+    
+    if (row) {
+        // 3. Find the index of the date in the data
+        const dataArray = type === 'forecast' ? activityMapData.forecasts : activityMapData.actuals;
+        const index = dataArray.findIndex(item => item.date === date);
+        
+        // 4. Find the corresponding DOM element by index
+        if (index !== -1) {
+            const cells = row.querySelectorAll('.activity-cell');
+            if (cells[index]) {
+                const cell = cells[index];
+                
+                // Add the class to trigger CSS animation
+                cell.classList.add('highlighted');
+                
+                // Scroll the scrollable container so the cell is visible
+                cell.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'nearest', 
+                    inline: 'center' // Keeps the cell centered horizontally
+                });
+            }
+        }
+    }
+}
+
 function renderActivityMap() {
     if (!activityMapData) return;
     
@@ -182,6 +219,9 @@ function renderActivityMap() {
     const content = document.getElementById('myActivityContent');
     if (loader) loader.style.display = 'none';
     if (content) content.style.display = 'flex';
+    if (currentDate && currentEntryType) {
+        highlightActivityCell(currentDate, currentEntryType);
+    }
 }
 
 function getStatusLabel(status, type) {
@@ -439,6 +479,7 @@ async function loadOutstandingItems() {
             if (firstItem) firstItem.classList.add('selected');
             
             updateEntryBadge('forecast');
+            highlightActivityCell(firstForecast.date, 'forecast');
         }
         
     } catch (error) {
@@ -526,6 +567,7 @@ async function selectDate(date, type, hasEntry = false) {
         currentDate = date;
         currentEntryType = type;
         document.getElementById('entryType').value = type;
+        highlightActivityCell(date, type);
         
         // sync dropdown selection
         const dropdown = document.getElementById('weekDropdown');
@@ -626,6 +668,86 @@ function updateEntryBadge(type) {
         badge.style.display = 'inline-flex';
         badge.className = 'entry-badge badge-actual';
         label.textContent = 'Actual';
+    }
+}
+
+
+function renderTeamMemberActivityMap(email, data) {
+    const memberContainer = document.querySelector(`.team-member-activity[data-email="${email}"]`);
+    if (!memberContainer) return;
+    
+    const forecastRow = memberContainer.querySelector('.team-forecast-row');
+    const actualRow = memberContainer.querySelector('.team-actual-row');
+    const monthLabelsRow = memberContainer.querySelector('.team-month-labels');
+    
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const cellSize = 15;
+    const gapSize = 2;
+    
+    // Calculate month spans
+    let monthSpans = [];
+    let currentMonth = -1;
+    let currentMonthStart = 0;
+    
+    // Use data.forecasts for timeline structure
+    if (data.forecasts) {
+        data.forecasts.forEach((item, index) => {
+            const date = new Date(item.date + 'T00:00:00');
+            const month = date.getMonth();
+            
+            if (month !== currentMonth) {
+                if (currentMonth !== -1) {
+                    monthSpans.push({ month: currentMonth, startIndex: currentMonthStart, endIndex: index - 1 });
+                }
+                currentMonth = month;
+                currentMonthStart = index;
+            }
+        });
+        
+        if (currentMonth !== -1) {
+            monthSpans.push({ month: currentMonth, startIndex: currentMonthStart, endIndex: data.forecasts.length - 1 });
+        }
+    }
+    
+    // HTML as strings for batch DOM update
+    const monthLabelsHTML = monthSpans.map(span => {
+        const count = span.endIndex - span.startIndex + 1;
+        const width = (count * cellSize) + ((count - 1) * gapSize);
+        return `<span class="month-label" style="width:${width}px">${monthNames[span.month]}</span>`;
+    }).join('');
+    
+    // Tooltips (Read only for team members)
+    const forecastHTML = (data.forecasts || []).map(item => 
+        `<div class="activity-cell cell-${item.status} team-cell-readonly">
+            <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'forecast')}</span>
+        </div>`
+    ).join('');
+    
+    const actualHTML = (data.actuals || []).map(item => 
+        `<div class="activity-cell cell-${item.status} team-cell-readonly">
+            <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'actual')}</span>
+        </div>`
+    ).join('');
+    
+    // DOM updates
+    if (monthLabelsRow) monthLabelsRow.innerHTML = monthLabelsHTML;
+    if (forecastRow) forecastRow.innerHTML = forecastHTML;
+    if (actualRow) actualRow.innerHTML = actualHTML;
+    
+    // Calculate % filled (actuals: green / (green + red))
+    let greenCount = 0, redCount = 0;
+    (data.actuals || []).forEach(a => {
+        if (a.status === 'green') greenCount++;
+        else if (a.status === 'red') redCount++;
+    });
+    const totalApplicable = greenCount + redCount;
+    const fillPercent = totalApplicable > 0 ? Math.round((greenCount / totalApplicable) * 100) : 100;
+    
+    // Update % filled display in donut center
+    const fillPercentEl = memberContainer.querySelector('.team-donut-value');
+    if (fillPercentEl) {
+        fillPercentEl.textContent = `${fillPercent}%`;
+        fillPercentEl.style.color = fillPercent >= 90 ? '#10b981' : fillPercent >= 70 ? '#f97316' : '#ef4444';
     }
 }
 
@@ -1103,13 +1225,12 @@ async function loadTeamActivityMaps() {
     if (mapsContainer) mapsContainer.style.display = 'block';
 }
 
-function renderTeamMemberActivityMap(email, data) {
-    const memberContainer = document.querySelector(`.team-member-activity[data-email="${email}"]`);
-    if (!memberContainer) return;
+function renderActivityMap() {
+    if (!activityMapData) return;
     
-    const forecastRow = memberContainer.querySelector('.team-forecast-row');
-    const actualRow = memberContainer.querySelector('.team-actual-row');
-    const monthLabelsRow = memberContainer.querySelector('.team-month-labels');
+    const forecastRow = document.getElementById('forecastRow');
+    const actualRow = document.getElementById('actualRow');
+    const monthLabelsRow = document.getElementById('monthLabelsRow');
     
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const cellSize = 15;
@@ -1120,13 +1241,17 @@ function renderTeamMemberActivityMap(email, data) {
     let currentMonth = -1;
     let currentMonthStart = 0;
     
-    data.forecasts.forEach((item, index) => {
+    activityMapData.forecasts.forEach((item, index) => {
         const date = new Date(item.date + 'T00:00:00');
         const month = date.getMonth();
         
         if (month !== currentMonth) {
             if (currentMonth !== -1) {
-                monthSpans.push({ month: currentMonth, startIndex: currentMonthStart, endIndex: index - 1 });
+                monthSpans.push({
+                    month: currentMonth,
+                    startIndex: currentMonthStart,
+                    endIndex: index - 1
+                });
             }
             currentMonth = month;
             currentMonthStart = index;
@@ -1134,47 +1259,71 @@ function renderTeamMemberActivityMap(email, data) {
     });
     
     if (currentMonth !== -1) {
-        monthSpans.push({ month: currentMonth, startIndex: currentMonthStart, endIndex: data.forecasts.length - 1 });
+        monthSpans.push({
+            month: currentMonth,
+            startIndex: currentMonthStart,
+            endIndex: activityMapData.forecasts.length - 1
+        });
     }
     
-    // HTML as strings for batch DOM update
+    // Build HTML strings
     const monthLabelsHTML = monthSpans.map(span => {
         const count = span.endIndex - span.startIndex + 1;
         const width = (count * cellSize) + ((count - 1) * gapSize);
         return `<span class="month-label" style="width:${width}px">${monthNames[span.month]}</span>`;
     }).join('');
     
-    // Tooltips
-    const forecastHTML = data.forecasts.map(item => 
-        `<div class="activity-cell cell-${item.status} team-cell-readonly"><span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'forecast')}</span></div>`
+    // --- UPDATED LOGIC STARTS HERE ---
+    // Helper to check if this cell should be highlighted immediately on render
+    const getExtraClass = (date, type) => {
+        return (currentDate === date && currentEntryType === type) ? ' highlighted' : '';
+    };
+
+    const forecastHTML = activityMapData.forecasts.map(item => 
+        `<div class="activity-cell cell-${item.status}${getExtraClass(item.date, 'forecast')}" 
+              onclick="handleCellClick('${item.date}','forecast',${item.has_entry},'${item.status}')">
+              <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'forecast')}</span>
+         </div>`
     ).join('');
     
-    const actualHTML = data.actuals.map(item => 
-        `<div class="activity-cell cell-${item.status} team-cell-readonly"><span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'actual')}</span></div>`
+    const actualHTML = activityMapData.actuals.map(item => 
+        `<div class="activity-cell cell-${item.status}${getExtraClass(item.date, 'actual')}" 
+              onclick="handleCellClick('${item.date}','actual',${item.has_entry},'${item.status}')">
+              <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'actual')}</span>
+         </div>`
     ).join('');
-    
-    // DOM updates
+    // --- UPDATED LOGIC ENDS HERE ---
+
     monthLabelsRow.innerHTML = monthLabelsHTML;
     forecastRow.innerHTML = forecastHTML;
     actualRow.innerHTML = actualHTML;
     
-    // Calculate % filled (actuals: green / (green + red))
+    // ... (rest of your existing donut calculation logic) ...
+    
     let greenCount = 0, redCount = 0;
-    data.actuals.forEach(a => {
+    activityMapData.actuals.forEach(a => {
         if (a.status === 'green') greenCount++;
         else if (a.status === 'red') redCount++;
     });
     const totalApplicable = greenCount + redCount;
     const fillPercent = totalApplicable > 0 ? Math.round((greenCount / totalApplicable) * 100) : 100;
     
-    // Update % filled display in donut center
-    const fillPercentEl = memberContainer.querySelector('.team-donut-value');
-    if (fillPercentEl) {
-        fillPercentEl.textContent = `${fillPercent}%`;
-        fillPercentEl.style.color = fillPercent >= 90 ? '#10b981' : fillPercent >= 70 ? '#f97316' : '#ef4444';
+    const donutCenterValue = document.getElementById('donutCenterValue');
+    if (donutCenterValue) {
+        donutCenterValue.textContent = `${fillPercent}%`;
+        donutCenterValue.style.color = fillPercent >= 90 ? '#10b981' : fillPercent >= 70 ? '#f97316' : '#ef4444';
+    }
+    
+    const loader = document.getElementById('myActivityLoader');
+    const content = document.getElementById('myActivityContent');
+    if (loader) loader.style.display = 'none';
+    if (content) content.style.display = 'flex';
+    
+    // Explicitly scroll to the highlighted cell if it exists after render
+    if (currentDate && currentEntryType) {
+        highlightActivityCell(currentDate, currentEntryType);
     }
 }
-
 // Nudge Functions
 async function sendNudge(toEmail, toName) {
     try {
