@@ -752,12 +752,16 @@ def get_outstanding_items():
         friday_date = datetime.strptime(friday, '%Y-%m-%d').date()
         if friday_date <= today and friday not in current_dates:
             week_start = friday_date - timedelta(days=4)
+            
+            # CHANGED: Used %b instead of %B for abbreviated months (Jan, Feb, etc.)
+            date_range_str = f"{week_start.strftime('%b %d, %Y')} - {friday_date.strftime('%b %d, %Y')}"
+            
             items.append({
                 'date': friday,
                 'week_commencing': week_start.strftime('%Y-%m-%d'),
-                'week_commencing_label': week_start.strftime('%b %d, %Y'),
+                'week_commencing_label': date_range_str,
                 'type': 'actual',
-                'label': f"Week commencing {week_start.strftime('%b %d, %Y')} - Missing Actuals",
+                'label': f"Week {date_range_str} - Missing Actuals",
                 'status': 'missing',
                 'priority': 1
             })
@@ -772,12 +776,19 @@ def get_outstanding_items():
     
     if next_monday not in forecast_dates:
         monday_date = datetime.strptime(next_monday, '%Y-%m-%d').date()
+        
+        # Calculate Friday for the forecast week
+        friday_date = monday_date + timedelta(days=4)
+        
+        # CHANGED: Used %b instead of %B for abbreviated months
+        date_range_str = f"{monday_date.strftime('%b %d, %Y')} - {friday_date.strftime('%b %d, %Y')}"
+
         items.append({
             'date': next_monday,
             'week_commencing': next_monday,
-            'week_commencing_label': monday_date.strftime('%b %d, %Y'),
+            'week_commencing_label': date_range_str,
             'type': 'forecast',
-            'label': f"Week commencing {monday_date.strftime('%b %d, %Y')} - Forecast",
+            'label': f"Week {date_range_str} - Forecast",
             'status': 'open',
             'priority': 2
         })

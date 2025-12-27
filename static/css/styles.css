@@ -311,7 +311,7 @@ kbd {
 /* Week Select Custom Dropdown */
 .week-select-wrapper {
     position: relative;
-    width: 13rem;
+    width: 17rem;
 }
 
 .week-select-trigger {

@@ -513,52 +513,103 @@ function handleCellClick(date, type, hasEntry, status) {
 }
 
 async function selectDate(date, type, hasEntry = false) {
-    // if entry exists - Green
-    if (hasEntry) {
-        const confirmed = confirm('This week was already submitted. Are you sure you want to modify it?');
-        if (!confirmed) return;
-    }
+    console.log('selectDate called:', { date, type, hasEntry });
     
-    // Update state
-    currentDate = date;
-    currentEntryType = type;
-    
-    // update hidden entry type
-    document.getElementById('entryType').value = type;
-    
-    // sync dropdown selection
-    const dropdown = document.getElementById('weekDropdown');
-    const trigger = document.getElementById('weekSelectTrigger');
-    const items = dropdown.querySelectorAll('.week-dropdown-item');
-    
-    items.forEach(item => {
-        try {
-            const itemData = JSON.parse(item.dataset.value);
-            if (itemData.date === date && itemData.type === type) {
-                // Mark as selected
-                dropdown.querySelectorAll('.week-dropdown-item').forEach(el => el.classList.remove('selected'));
-                item.classList.add('selected');
-                
-                // Update trigger text
-                const labelSpan = item.querySelector('span');
-                if (labelSpan) {
-                    trigger.textContent = labelSpan.textContent;
-                    trigger.classList.remove('placeholder');
+    try {
+        // if entry exists - Green
+        if (hasEntry) {
+            const confirmed = confirm('This week was already submitted. Are you sure you want to modify it?');
+            if (!confirmed) return;
+        }
+        
+        // Update state
+        currentDate = date;
+        currentEntryType = type;
+        document.getElementById('entryType').value = type;
+        
+        // sync dropdown selection
+        const dropdown = document.getElementById('weekDropdown');
+        const trigger = document.getElementById('weekSelectTrigger');
+        const items = dropdown.querySelectorAll('.week-dropdown-item');
+        
+        let foundInDropdown = false;
+        
+        // clear existing selections
+        dropdown.querySelectorAll('.week-dropdown-item').forEach(el => el.classList.remove('selected'));
+        
+        items.forEach(item => {
+            try {
+                const itemData = JSON.parse(item.dataset.value);
+                if (itemData.date === date && itemData.type === type) {
+                    foundInDropdown = true;
+                    
+                    // mark selected
+                    item.classList.add('selected');
+                    
+                    // trigger text
+                    const labelSpan = item.querySelector('span');
+                    if (labelSpan) {
+                        trigger.textContent = labelSpan.textContent;
+                        trigger.classList.remove('placeholder');
+                    }
+                    
+                    // hidden value
+                    document.getElementById('weekDateValue').value = item.dataset.value;
                 }
-                
-                // Update hidden value
-                document.getElementById('weekDateValue').value = item.dataset.value;
+            } catch (e) {
+                console.error('Error parsing dropdown item:', e);
             }
-        } catch (e) {}
-    });
-    
-    // update badge
-    updateEntryBadge(type);
-    
-    // load existing entries if any
-    await loadEntriesForDate(date, type);
-    
-    showToast(`Loaded ${type} for ${formatDateLabel(date)}`, 'info');
+        });
+        
+        // when date not in dropdown, update the trigger to show the selected date
+        if (!foundInDropdown) {
+            console.log('Date not found in dropdown, formatting manually');
+            
+            // Calculate Start Date (Monday)
+            const startObj = new Date(date + 'T00:00:00');
+            if (type === 'actual') {
+                startObj.setDate(startObj.getDate() - 4);
+            }
+            const endObj = new Date(startObj);
+            endObj.setDate(startObj.getDate() + 4); // Add 4 days to Monday to get Friday
+
+            // function to format dates (e.g., "Jan 24, 2025")
+            const formatDatePart = (dateObj) => {
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const month = monthNames[dateObj.getMonth()];
+                const day = String(dateObj.getDate()).padStart(2, '0');
+                const year = dateObj.getFullYear();
+                return `${month} ${day}, ${year}`;
+            };
+
+            // range string: "Jan 20, 2025 - Jan 24, 2025"
+            const formattedDate = `${formatDatePart(startObj)} - ${formatDatePart(endObj)}`;
+            
+            console.log('Formatted date range:', formattedDate);
+            
+            trigger.textContent = formattedDate;
+            trigger.classList.remove('placeholder');
+            
+            document.getElementById('weekDateValue').value = JSON.stringify({ 
+                date: date, 
+                type: type, 
+                status: hasEntry ? 'green' : 'blue'
+            });
+        }
+        
+        // update badge
+        updateEntryBadge(type);
+        
+        // existing entries load
+        console.log('Loading entries for:', date, type);
+        await loadEntriesForDate(date, type);
+        
+        showToast(`Loaded ${type} for ${formatDateLabel(date)}`, 'info');
+        
+    } catch (error) {
+        console.error('Error in selectDate:', error);
+        showToast('Error loading date: ' + error.message, 'error');
+    }
 }
 
 function updateEntryBadge(type) {
