@@ -493,8 +493,8 @@ def get_user_email():
     
     if not username:
         if os.environ.get('FLASK_DEBUG') or app.debug:
-            #return request.args.get('user', 'holger_cammerer@gallagherre.com')
-            return 'rakshit_joshi@gallagherre.com'
+            return request.args.get('user', 'holger_cammerer@gallagherre.com')
+            #return credentials_header
             #return "unknown_user@gallagherre.com"
         return None
     

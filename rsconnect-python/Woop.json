@@ -2,10 +2,10 @@
     "https://rconnect.dev.ajgco.com/": {
         "server_url": "https://rconnect.dev.ajgco.com/",
         "filename": "C:\\Users\\rajoshi\\Woop",
-        "app_url": "https://rconnect.dev.ajgco.com/content/1ef58967-087f-492b-a99a-daada8f0edda/",
-        "app_id": "1ef58967-087f-492b-a99a-daada8f0edda",
-        "app_guid": "1ef58967-087f-492b-a99a-daada8f0edda",
-        "title": "woop 2--new",
+        "app_url": "https://rconnect.dev.ajgco.com/content/85ffe934-83e8-4549-8583-bef6367a3dfc/",
+        "app_id": "390",
+        "app_guid": "85ffe934-83e8-4549-8583-bef6367a3dfc",
+        "title": "WOOP 2.0",
         "app_mode": "python-api",
         "app_store_version": 1
     }
