@@ -33,63 +33,7 @@ MSSQL_PORT = 51018
 MSSQL_DATABASE = 'EMEA_activity_tracker'
 MSSQL_DOMAIN = 'emea'
 
-DATA_DIR = os.environ.get('CONNECT_DATA_DIR') or app.instance_path
-os.makedirs(DATA_DIR, exist_ok=True)
 
-forecast_db = os.path.join(DATA_DIR, 'timesheet_forecast.db')
-current_db = os.path.join(DATA_DIR, 'timesheet_current.db')
-
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{forecast_db}'
-app.config['SQLALCHEMY_BINDS'] = {
-    'forecast': f'sqlite:///{forecast_db}',
-    'current': f'sqlite:///{current_db}'
-}
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
-
-# database models
-
-class ForecastEntry(db.Model):
-    __tablename__ = 'forecast_entry'
-    __bind_key__ = 'forecast'
-    
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    activity_week = db.Column(db.String(50), nullable=False, index=True)
-    colleague = db.Column(db.String(255), nullable=False, index=True)
-    assignment_ID = db.Column(db.String(255), nullable=False)
-    allocation_days = db.Column(db.Float, nullable=False)
-    notes = db.Column(db.Text, nullable=True)
-    record_created = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-
-
-class CurrentEntry(db.Model):
-    __tablename__ = 'current_entry'
-    __bind_key__ = 'current'
-    
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    activity_week = db.Column(db.String(50), nullable=False, index=True)
-    colleague = db.Column(db.String(255), nullable=False, index=True)
-    assignment_ID = db.Column(db.String(255), nullable=False)
-    allocation_days = db.Column(db.Float, nullable=False)
-    notes = db.Column(db.Text, nullable=True)
-    record_created = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-
-
-class Nudge(db.Model):
-    __tablename__ = 'nudge'
-    __bind_key__ = 'current'
-    
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    from_email = db.Column(db.String(255), nullable=False, index=True)
-    from_name = db.Column(db.String(255), nullable=False)
-    to_email = db.Column(db.String(255), nullable=False, index=True)
-    message = db.Column(db.Text, nullable=False)
-    created = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    dismissed = db.Column(db.Boolean, default=False, nullable=False)
-
-
-# database connection
 
 _mssql_engine = None
 
@@ -551,6 +495,7 @@ def get_user_email():
         if os.environ.get('FLASK_DEBUG') or app.debug:
             #return request.args.get('user', 'holger_cammerer@gallagherre.com')
             return 'rakshit_joshi@gallagherre.com'
+            #return "unknown_user@gallagherre.com"
         return None
     
     return lookup_email_by_username(username) or username
@@ -596,6 +541,25 @@ def send_reminder_email(to_email, subject, body, send=False):
         return False
 
 
+def verify_user_exists(email):
+    """check if the user exists in the team list table"""
+    engine = get_engine()
+    if engine is None:
+        return False
+
+    try:
+        with engine.connect() as conn:
+            # Check if email exists in the table
+            result = conn.execute(
+                text("SELECT COUNT(*) FROM dbo.EMEA_team_list WHERE LOWER(Email) = LOWER(:email)"),
+                {"email": email}
+            ).fetchone()
+            
+            return result[0] > 0
+    except Exception as e:
+        logger.error(f"Error verifying user existence: {e}")
+        return False
+
 # api routes
 
 @app.route('/api/health')
@@ -619,17 +583,25 @@ def health_check():
 def index():
     """main timesheet interface"""
     user_email = get_user_email()
+    logger.info(f"User email retrieved: {user_email}")
     
     if not user_email:
         return "Unable to identify user. Please ensure you are logged in.", 401
     
+    is_authorized = verify_user_exists(user_email)
+    logger.info(f"User {user_email} authorization check: {is_authorized}")
+    
+    if not is_authorized:
+        logger.warning(f"Unauthorized user: {user_email}")
+    
     return render_template(
         'index.html',
         user_email=user_email,
-        user_name=get_user_name(user_email),
+        user_name=get_user_name(user_email) if is_authorized else user_email,
         default_date=get_next_monday(),
         projects=load_active_projects(),
-        direct_reports=get_direct_reports(user_email)
+        direct_reports=get_direct_reports(user_email),
+        is_authorized=is_authorized
     )
 
 
@@ -753,7 +725,7 @@ def get_outstanding_items():
         if friday_date <= today and friday not in current_dates:
             week_start = friday_date - timedelta(days=4)
             
-            # CHANGED: Used %b instead of %B for abbreviated months (Jan, Feb, etc.)
+            # use abbreviated months (Jan, Feb, etc.)
             date_range_str = f"{week_start.strftime('%b %d, %Y')} - {friday_date.strftime('%b %d, %Y')}"
             
             items.append({
@@ -780,7 +752,7 @@ def get_outstanding_items():
         # Calculate Friday for the forecast week
         friday_date = monday_date + timedelta(days=4)
         
-        # CHANGED: Used %b instead of %B for abbreviated months
+        # use abbreviated months
         date_range_str = f"{monday_date.strftime('%b %d, %Y')} - {friday_date.strftime('%b %d, %Y')}"
 
         items.append({
@@ -944,6 +916,7 @@ def send_nudge():
     if not to_email:
         return jsonify({'error': 'Recipient email required'}), 400
     
+    # Check Authorization (Direct Reports Only)
     direct_reports = get_direct_reports(user_email)
     if not any(r['email'].lower() == to_email.lower() for r in direct_reports):
         return jsonify({'error': 'Unauthorized'}), 403
@@ -959,19 +932,29 @@ def send_nudge():
         "Your timesheet misses you 💔",
     ]
     
+    engine = get_engine()
+    if not engine:
+        return jsonify({'error': 'Database connection failed'}), 500
+
     try:
-        nudge = Nudge(
-            from_email=user_email.lower(),
-            from_name=get_user_name(user_email),
-            to_email=to_email.lower(),
-            message=random.choice(nudge_messages)
-        )
-        db.session.add(nudge)
-        db.session.commit()
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO dbo.nudges (from_email, from_name, to_email, message, created, dismissed)
+                    VALUES (:from_email, :from_name, :to_email, :message, GETUTCDATE(), 0)
+                """),
+                {
+                    'from_email': user_email.lower(),
+                    'from_name': get_user_name(user_email),
+                    'to_email': to_email.lower(),
+                    'message': random.choice(nudge_messages)
+                }
+            )
         return jsonify({'success': True, 'message': 'Nudge sent!'})
     except Exception as e:
-        db.session.rollback()
+        logger.error(f"Error sending nudge: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/api/get_nudges')
@@ -981,19 +964,38 @@ def get_nudges():
     if not user_email:
         return jsonify({'error': 'User not authenticated'}), 401
     
-    nudges = Nudge.query.filter_by(to_email=user_email.lower(), dismissed=False)\
-                        .order_by(Nudge.created.desc()).all()
-    
-    return jsonify([
-        {
-            'id': n.id,
-            'from_name': n.from_name,
-            'message': n.message,
-            'created': n.created.strftime('%b %d at %H:%M')
-        }
-        for n in nudges
-    ])
+    engine = get_engine()
+    if not engine:
+        return jsonify([])
 
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("""
+                    SELECT id, from_name, message, created 
+                    FROM dbo.nudges 
+                    WHERE LOWER(to_email) = LOWER(:email) 
+                      AND dismissed = 0
+                    ORDER BY created DESC
+                """),
+                {'email': user_email}
+            ).fetchall()
+            
+            nudges = []
+            for row in result:
+                # row[3] =datetime object from MSSQL
+                created_str = row[3].strftime('%b %d at %H:%M') if row[3] else ''
+                nudges.append({
+                    'id': row[0],
+                    'from_name': row[1],
+                    'message': row[2],
+                    'created': created_str
+                })
+            
+            return jsonify(nudges)
+    except Exception as e:
+        logger.error(f"Error fetching nudges: {e}")
+        return jsonify([])
 
 @app.route('/api/dismiss_nudge', methods=['POST'])
 def dismiss_nudge():
@@ -1002,32 +1004,78 @@ def dismiss_nudge():
     if not user_email:
         return jsonify({'error': 'User not authenticated'}), 401
     
-    nudge_id = request.get_json().get('nudge_id') if request.get_json() else None
+    data = request.get_json()
+    nudge_id = data.get('nudge_id') if data else None
+    
     if not nudge_id:
         return jsonify({'error': 'Nudge ID required'}), 400
     
-    nudge = Nudge.query.filter_by(id=nudge_id, to_email=user_email.lower()).first()
-    if not nudge:
-        return jsonify({'error': 'Nudge not found'}), 404
+    engine = get_engine()
+    if not engine:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        with engine.begin() as conn:
+            # only dismiss if belongs to current user
+            result = conn.execute(
+                text("""
+                    UPDATE dbo.nudges 
+                    SET dismissed = 1 
+                    WHERE id = :id AND LOWER(to_email) = LOWER(:email)
+                """),
+                {'id': nudge_id, 'email': user_email}
+            )
+            
+            if result.rowcount == 0:
+                 # either ID didn't exist or belonged to someone else
+                 pass 
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error dismissing nudge: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/debug_auth')
+def debug_auth():
+    """Debug authorization issues"""
+    user_email = get_user_email()
+    engine = get_engine()
     
-    nudge.dismissed = True
-    db.session.commit()
-    return jsonify({'success': True})
-
-
-# initialization
-
-def init_db():
-    with app.app_context():
-        db.create_all()
-        print("Databases initialized")
-
-
-# Initialize on import
-with app.app_context():
-    db.create_all()
+    debug_info = {
+        'user_email': user_email,
+        'engine_available': engine is not None,
+        'verify_result': None,
+        'db_emails_like_user': []
+    }
+    
+    if engine and user_email:
+        try:
+            with engine.connect() as conn:
+                debug_info['verify_result'] = verify_user_exists(user_email)
+                result = conn.execute(
+                    text("""
+                        SELECT Email, LEN(Email) as len, 
+                               LOWER(LTRIM(RTRIM(Email))) as cleaned
+                        FROM dbo.EMEA_team_list 
+                        WHERE Email LIKE :pattern
+                    """),
+                    {"pattern": f"%{user_email.split('@')[0]}%"}
+                ).fetchall()
+                
+                debug_info['db_emails_like_user'] = [
+                    {'email': r[0], 'length': r[1], 'cleaned': r[2]} 
+                    for r in result
+                ]
+                
+                # exact comparison
+                debug_info['user_email_lower'] = user_email.lower()
+                debug_info['user_email_length'] = len(user_email)
+                
+        except Exception as e:
+            debug_info['error'] = str(e)
+    
+    return jsonify(debug_info)
 
 
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)

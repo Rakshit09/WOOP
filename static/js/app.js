@@ -16,7 +16,7 @@ let dropdownDebounceTimer = null;
 // Nudge state
 let pendingNudges = [];
 let currentNudgeIndex = 0;
-const nudgeArts = ['👀', '🫵', '😤', '🧚', '🔔', '📢', '🚨', '💪'];
+const nudgeArts = ['👀', '🫵', '😤', '🔔', '📢', '🚨', '🫵'];
 
 // Week dropdown items
 let weekDropdownItems = [];
