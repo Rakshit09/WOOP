@@ -189,7 +189,7 @@
         
         <!-- Activity Map Section -->
         <div class="activity-map-card">
-            <div class="activity-map-header">
+            <div class="activity-map-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="activity-map-title-group">
                     <svg class="activity-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
@@ -197,6 +197,13 @@
                     <span class="activity-map-title">My Activity Overview</span>
                     <span class="activity-map-year">({{ default_date[:4] }})</span>
                 </div>
+
+                <!-- Help Button -->
+                <button onclick="toggleHelpModal()" class="text-brand-dark/40 hover:text-brand-dark transition-colors cursor-pointer" title="How does this work?" style="background: none; border: none; padding: 0 0.5rem;">
+                    <svg class="w-6 h-6" style="width: 26px; height: 26px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </button>
             </div>
             
             <!-- Loading Spinner -->
@@ -448,14 +455,167 @@
             }
         }
     </script>
-    
-    <style>
-        @keyframes slideIn {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-    </style>
+
     {% endif %}
 
+<!-- Help Guide Modal -->
+<div id="helpModal" class="modal-overlay" onclick="if(event.target === this) toggleHelpModal()">
+    <div class="bg-white rounded-lg shadow-2xl max-w-3xl w-full p-0 overflow-hidden transform transition-all scale-100">
+        
+        <!-- Header -->
+        <div class="bg-brand-dark p-6 text-white relative">
+            <h2 class="text-xl font-bold flex items-center gap-2">
+                <span>👋</span> How WOOP Works
+            </h2>
+            <button onclick="toggleHelpModal()" class="absolute top-6 right-6 text-white/60 hover:text-white cursor-pointer">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <!-- Content -->
+        <div class="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
+            
+            <!-- 1. Intro-->
+            <div class="text-center pb-2 border-b border-gray-100">
+                <h3 class="font-bold text-brand-dark text-lg mb-1">Why WOOP?</h3>
+                <p class="text-gray-600 text-sm leading-relaxed">
+                    This tool helps with project resourcing, planning, and tracking effort vs. revenue for projects.
+                    <br><strong class="text-brand-dark">Your data is extremely important for this.</strong>
+                </p>
+            </div>
+
+            <!-- 2.Routine -->
+            <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                <h3 class="font-bold text-brand-dark mb-2 text-sm uppercase tracking-wide">The Routine</h3>
+                <div class="flex flex-col gap-3">
+                    <div class="flex gap-3 items-start">
+                        <div class="bg-white p-2 rounded-lg shadow-sm text-lg">📅</div>
+                        <div>
+                            <strong class="text-brand-dark block">Monday: Forecast</strong>
+                            <p class="text-sm text-gray-600">Think future! What do you <em>plan</em> to do this week? Fill this on Monday.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 items-start">
+                        <div class="bg-white p-2 rounded-lg shadow-sm text-lg">✅</div>
+                        <div>
+                            <strong class="text-brand-dark block">Friday: Actuals</strong>
+                            <p class="text-sm text-gray-600">Look back! What did you <em>actually</em> do? Confirm your week on Friday.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. my activity section -->
+            <div class="bg-blue-50 rounded-xl p-4 border border-gray-200">
+                <h3 class="font-bold text-brand-dark mb-3 text-sm uppercase tracking-wide">My Activity Overview</h3>
+                <div class="flex flex-col gap-4">
+                    
+                    <!-- heatmap -->
+                    <div class="flex gap-3 items-start">
+                        <div class="bg-white p-1.5 rounded shadow-sm text-gray-500">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                        </div>
+                        <div>
+                            <strong class="text-gray-800 text-sm block">The Heat Map</strong>
+                            <p class="text-xs text-gray-600">This is a visual snapshot of your activity. <strong>Top Row = Plans = Forecast</strong>, <strong>Bottom Row = Reality = Actuals</strong>.
+                            <br> Click any box to jump to that week.</p>
+                        </div>
+                    </div>
+                    <!-- donut chart -->
+                    <div class="flex gap-3 items-start">
+                        <div class="bg-white p-1.5 rounded shadow-sm text-gray-500">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path></svg>
+                        </div>
+                        <div>
+                            <strong class="text-gray-800 text-sm block">The Breakdown Chart</strong>
+                            <p class="text-xs text-gray-600">This shows the percentage (%) of time you have spent on specific projects to date. 
+                            <br>Hover over the slices to know more.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. colour guide -->
+            <div>
+                <h3 class="font-bold text-brand-dark mb-3 text-sm uppercase tracking-wide">Color Guide</h3>
+                <div class="grid grid-cols-1 gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded bg-blue-500 shadow-sm flex-shrink-0 border-2 border-blue-600/20"></div>
+                        <div><span class="font-bold text-gray-800 text-sm">Open</span> <span class="text-xs text-gray-500">- The current week. It's ready for you to fill in.</span></div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded bg-green-500 shadow-sm flex-shrink-0 border-2 border-green-600/20"></div>
+                        <div><span class="font-bold text-gray-800 text-sm">Completed</span> <span class="text-xs text-gray-500">- Great! You've submitted this entry.</span></div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded bg-red-500 shadow-sm flex-shrink-0 border-2 border-red-600/20"></div>
+                        <div><span class="font-bold text-gray-800 text-sm">Missing</span> <span class="text-xs text-gray-500">- Oops! A past week actual entry was missed. Please go back and fill it.</span></div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded bg-gray-200 shadow-sm flex-shrink-0 border-2 border-gray-300"></div>
+                        <div><span class="font-bold text-gray-400 text-sm">Locked</span> <span class="text-xs text-gray-400">->Future dates are locked. Old Forecasts expire if missed. So get it green on time.</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Alien art -->
+            <div class="mt-4 pt-6 border-t border-dashed border-gray-200 text-center">
+                
+                <style>
+                    /* vibration animation */
+                    @keyframes antenna-vibrate {
+                        0% { transform: translate(0, 0) rotate(0deg); }
+                        20% { transform: translate(-1px, 1px) rotate(-5deg); }
+                        40% { transform: translate(-1px, -1px) rotate(5deg); }
+                        60% { transform: translate(1px, 1px) rotate(-5deg); }
+                        80% { transform: translate(1px, -1px) rotate(5deg); }
+                        100% { transform: translate(0, 0) rotate(0deg); }
+                    }
+                    .antenna-active {
+                        animation: antenna-vibrate 0.15s infinite linear;
+                        transform-origin: bottom center;
+                    }
+                </style>
+
+                <div class="flex flex-col items-center justify-center">
+                    <!-- alien SVG -->
+                    <svg class="w-24 h-24 text-green-500 mb-2 drop-shadow-md" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- antennas -->
+                        <g class="antenna-active" style="transform-origin: 30px 20px;">
+                            <path d="M32 25 Q 25 15 20 5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="20" cy="5" r="4" fill="currentColor"/>
+                        </g>
+                        <g class="antenna-active" style="transform-origin: 70px 20px; animation-delay: 0.05s;">
+                            <path d="M68 25 Q 75 15 80 5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="80" cy="5" r="4" fill="currentColor"/>
+                        </g>
+                        <!-- Head-->
+                        <path d="M50 95 C 75 85 90 60 90 35 C 90 12 72 5 50 5 C 28 5 10 12 10 35 C 10 60 25 85 50 95 Z" fill="currentColor"/>
+                        <!-- Eyes -->
+                        <ellipse cx="35" cy="45" rx="12" ry="19" transform="rotate(-25 35 45)" fill="#1a1a1a"/>
+                        <ellipse cx="65" cy="45" rx="12" ry="19" transform="rotate(25 65 45)" fill="#1a1a1a"/>
+                        <!-- Eye Reflections -->
+                        <ellipse cx="38" cy="40" rx="3" ry="5" transform="rotate(-25 38 40)" fill="white" opacity="0.9"/>
+                        <ellipse cx="62" cy="40" rx="3" ry="5" transform="rotate(25 62 40)" fill="white" opacity="0.9"/>
+                        <!-- Small Smile -->
+                        <path d="M42 80 Q 50 83 58 80" stroke="#064e3b" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+                    </svg>
+                </div>
+
+                <p class="text-2xl font-black text-brand-dark" style="font-family: 'Segoe UI', cursive, sans-serif;">
+                    "Get 'em Green!" <span class="text-green-500">✨</span>
+                </p>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="p-4 bg-gray-50 text-center border-t border-gray-100">
+            <button onclick="toggleHelpModal()" class="text-brand-dark font-semibold text-sm hover:underline cursor-pointer">Got it, thanks!</button>
+        </div>
+    </div>
+</div>
+
 </body>
+
 </html>

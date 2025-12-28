@@ -1410,6 +1410,19 @@ async function dismissCurrentNudge() {
     }
 }
 
+function toggleHelpModal() {
+    const modal = document.getElementById('helpModal');
+    if (modal) {
+        const isShowing = modal.classList.contains('show');
+        if (isShowing) {
+            modal.classList.remove('show');
+            document.body.style.overflow = 'auto'; 
+        } else {
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden'; 
+        }
+    }
+}
 // Init
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('=== WOOP App Initializing ===');
