@@ -463,9 +463,9 @@
     <div class="bg-white rounded-lg shadow-2xl max-w-3xl w-full p-0 overflow-hidden transform transition-all scale-100">
         
         <!-- Header -->
-        <div class="bg-brand-dark p-6 text-white relative">
+        <div class="bg-brand-dark p-4 text-white relative">
             <h2 class="text-xl font-bold flex items-center gap-2">
-                <span>👋</span> How WOOP Works
+                <span>👋</span> How to WOOP?
             </h2>
             <button onclick="toggleHelpModal()" class="absolute top-6 right-6 text-white/60 hover:text-white cursor-pointer">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -473,7 +473,7 @@
         </div>
 
         <!-- Content -->
-        <div class="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
+        <div class="p-4 space-y-5 overflow-y-auto max-h-[80vh]">
             
             <!-- 1. Intro-->
             <div class="text-center pb-2 border-b border-gray-100">
@@ -486,7 +486,7 @@
 
             <!-- 2.Routine -->
             <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                <h3 class="font-bold text-brand-dark mb-2 text-sm uppercase tracking-wide">The Routine</h3>
+                <h3 class="font-bold text-brand-dark mb-2 text-sm uppercase tracking-wide">The WOOP Protocol</h3>
                 <div class="flex flex-col gap-3">
                     <div class="flex gap-3 items-start">
                         <div class="bg-white p-2 rounded-lg shadow-sm text-lg">📅</div>
@@ -507,7 +507,7 @@
 
             <!-- 3. my activity section -->
             <div class="bg-blue-50 rounded-xl p-4 border border-gray-200">
-                <h3 class="font-bold text-brand-dark mb-3 text-sm uppercase tracking-wide">My Activity Overview</h3>
+                <h3 class="font-bold text-brand-dark mb-3 text-sm uppercase tracking-wide">The WOOP Board</h3>
                 <div class="flex flex-col gap-4">
                     
                     <!-- heatmap -->
@@ -516,7 +516,7 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
                         </div>
                         <div>
-                            <strong class="text-gray-800 text-sm block">The Heat Map</strong>
+                            <strong class="text-gray-800 text-sm block"> Heat Map</strong>
                             <p class="text-xs text-gray-600">This is a visual snapshot of your activity. <strong>Top Row = Plans = Forecast</strong>, <strong>Bottom Row = Reality = Actuals</strong>.
                             <br> Click any box to jump to that week.</p>
                         </div>
@@ -527,7 +527,7 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path></svg>
                         </div>
                         <div>
-                            <strong class="text-gray-800 text-sm block">The Breakdown Chart</strong>
+                            <strong class="text-gray-800 text-sm block"> Breakdown Chart</strong>
                             <p class="text-xs text-gray-600">This shows the percentage (%) of time you have spent on specific projects to date. 
                             <br>Hover over the slices to know more.</p>
                         </div>
@@ -536,24 +536,24 @@
             </div>
 
             <!-- 4. colour guide -->
-            <div>
-                <h3 class="font-bold text-brand-dark mb-3 text-sm uppercase tracking-wide">Color Guide</h3>
+            <div class="bg-blue-50 rounded-xl p-4 border border-gray-200">
+                <h3 class="font-bold text-brand-dark mb-3 text-sm uppercase tracking-wide">The WOOP Rules</h3>
                 <div class="grid grid-cols-1 gap-3">
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded bg-blue-500 shadow-sm flex-shrink-0 border-2 border-blue-600/20"></div>
+                        <div class="w-6 h-6 rounded bg-blue-500 shadow-sm flex-shrink-0 border-2 border-blue-600/20"></div>
                         <div><span class="font-bold text-gray-800 text-sm">Open</span> <span class="text-xs text-gray-500">- The current week. It's ready for you to fill in.</span></div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded bg-green-500 shadow-sm flex-shrink-0 border-2 border-green-600/20"></div>
+                        <div class="w-6 h-6 rounded bg-green-500 shadow-sm flex-shrink-0 border-2 border-green-600/20"></div>
                         <div><span class="font-bold text-gray-800 text-sm">Completed</span> <span class="text-xs text-gray-500">- Great! You've submitted this entry.</span></div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded bg-red-500 shadow-sm flex-shrink-0 border-2 border-red-600/20"></div>
+                        <div class="w-6 h-6 rounded bg-red-500 shadow-sm flex-shrink-0 border-2 border-red-600/20"></div>
                         <div><span class="font-bold text-gray-800 text-sm">Missing</span> <span class="text-xs text-gray-500">- Oops! A past week actual entry was missed. Please go back and fill it.</span></div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded bg-gray-200 shadow-sm flex-shrink-0 border-2 border-gray-300"></div>
-                        <div><span class="font-bold text-gray-400 text-sm">Locked</span> <span class="text-xs text-gray-400">->Future dates are locked. Old Forecasts expire if missed. So get it green on time.</span></div>
+                        <div class="w-6 h-6 rounded bg-gray-200 shadow-sm flex-shrink-0 border-2 border-gray-300"></div>
+                        <div><span class="font-bold text-gray-600 text-sm">Locked</span> <span class="text-xs text-gray-400">->Future dates are locked. Old Forecasts expire if missed. So get it green on time.</span></div>
                     </div>
                 </div>
             </div>
