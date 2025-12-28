@@ -1078,18 +1078,23 @@ function calculateTotal() {
 }
 
 async function copyLastWeek() {
+    if (!currentDate) {
+        showToast('Please select a week first', 'error');
+        return;
+    }
+
     try {
-        showToast('Loading last week\'s data...', 'info');
+        showToast('Looking for previous week data...', 'info');
+        const response = await fetch(`api/get_history?date=${currentDate}&type=${currentEntryType}`);
         
-        const response = await fetch('api/get_history');
+        if (response.status === 404) {
+            showToast('No entry found for the previous week', 'error');
+            return;
+        }
+
         if (!response.ok) throw new Error('Failed to fetch history');
         
         const data = await response.json();
-        
-        if (data.length === 0) {
-            showToast('No previous entries found', 'error');
-            return;
-        }
         
         document.getElementById('rowsContainer').innerHTML = '';
         rowCounter = 0;
@@ -1098,13 +1103,14 @@ async function copyLastWeek() {
             addNewRow(entry.project, entry.days, entry.notes);
         });
         
-        showToast(`Copied ${data.length} entries from last week`, 'success');
+        showToast(`Copied ${data.length} entries from previous week`, 'success');
         
     } catch (error) {
         console.error('Error copying last week:', error);
         showToast('Failed to copy data', 'error');
     }
 }
+
 
 async function submitForm() {
     if (!currentDate) {

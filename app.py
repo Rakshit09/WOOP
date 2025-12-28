@@ -795,20 +795,40 @@ def get_entry():
 
 @app.route('/api/get_history')
 def get_history():
-    """get most recent timesheet entries"""
+    """get strictly the previous week's entries relative to selected date"""
     user_email = get_user_email()
-    entry_type, activity_week = get_most_recent_entry_mssql(user_email)
-    
-    if not entry_type:
-        return jsonify([])
-    
-    getter = get_forecast_entries_mssql if entry_type == 'forecast' else get_current_entries_mssql
-    entries = getter(colleague=user_email, activity_week=activity_week)
-    
-    return jsonify([
-        {'project': e['assignment_ID'], 'days': e['allocation_days'], 'notes': e['notes'] or ''}
-        for e in entries
-    ])
+    if not user_email:
+        return jsonify({'error': 'User not authenticated'}), 401
+
+    current_date_str = request.args.get('date')
+    entry_type = request.args.get('type', 'forecast')
+
+    if not current_date_str:
+        return jsonify({'error': 'Current date required'}), 400
+
+    try:
+        current_date_obj = datetime.strptime(current_date_str, '%Y-%m-%d').date()
+        prev_week_date = current_date_obj - timedelta(days=7)
+        prev_week_str = prev_week_date.strftime('%Y-%m-%d')
+        
+        getter = get_forecast_entries_mssql if entry_type == 'forecast' else get_current_entries_mssql
+        entries = getter(colleague=user_email, activity_week=prev_week_str)
+
+        if not entries:
+            return jsonify({'error': 'Not found'}), 404
+
+        return jsonify([
+            {
+                'project': e['assignment_ID'], 
+                'days': e['allocation_days'], 
+                'notes': e['notes'] or ''
+            }
+            for e in entries
+        ])
+
+    except Exception as e:
+        logger.error(f"Error getting history: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/submit', methods=['POST'])
