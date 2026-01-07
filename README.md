@@ -1,6 +1,6 @@
-# Seamless Timesheet App
+# WOOP 2.0
 
-A zero-friction Flask-based web application for weekly resource scheduling and timesheet management. Designed to replace legacy Power Apps solutions with a modern, fast, and intuitive interface.
+A Flask-based web application for weekly resource scheduling and timesheet management. Designed to replace legacy Power Apps WOOP with a modern, fast, and intuitive interface.
 
 ## Features
 
@@ -181,9 +181,9 @@ pip install pyodbc
 
 ## License
 
-Internal use only - [Your Organization]
+Internal use only - [Gallagher Re]
 
 ## Support
 
-For issues or questions, contact: [Your Support Email]
+For issues or questions, contact: [rakshit_joshi@gallagherre.com]
 

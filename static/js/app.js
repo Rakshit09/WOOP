@@ -1,5 +1,4 @@
 // WOOP Application JavaScript
-// Expects window.WOOP_CONFIG to be defined with { projects: [...], directReports: [...] }
 
 // State & Configuration
 const projectList = window.WOOP_CONFIG?.projects || [];
@@ -47,7 +46,7 @@ function debounce(func, wait) {
     };
 }
 
-// Logo fallback for Posit Connect path handling
+// logo fallback handling
 function tryAlternativeLogoPath(img) {
     const paths = [
         './static/logo.png',
@@ -73,7 +72,7 @@ function tryAlternativeLogoPath(img) {
     tryNext();
 }
 
-// Activity Map Functions
+// activity map functions
 async function loadActivityMap() {
     try {
         console.log('Loading activity map...');
@@ -99,37 +98,32 @@ async function loadActivityMap() {
     }
 }
 
+// highlight activity cell
 function highlightActivityCell(date, type) {
     if (!activityMapData) return;
 
-    // 1. Remove highlight from ALL cells (both rows)
     document.querySelectorAll('.activity-cell.highlighted').forEach(cell => {
         cell.classList.remove('highlighted');
     });
     
-    // 2. Identify the correct row
     const rowId = type === 'forecast' ? 'forecastRow' : 'actualRow';
     const row = document.getElementById(rowId);
     
     if (row) {
-        // 3. Find the index of the date in the data
         const dataArray = type === 'forecast' ? activityMapData.forecasts : activityMapData.actuals;
         const index = dataArray.findIndex(item => item.date === date);
         
-        // 4. Find the corresponding DOM element by index
         if (index !== -1) {
             const cells = row.querySelectorAll('.activity-cell');
             if (cells[index]) {
                 const cell = cells[index];
                 
-                // Add the class to trigger CSS animation
                 cell.classList.add('highlighted');
                 
-                // Scroll the scrollable container so the cell is visible
                 cell.scrollIntoView({ 
                     behavior: 'smooth', 
                     block: 'nearest', 
-                    inline: 'center' // Keeps the cell centered horizontally
+                    inline: 'center' 
                 });
             }
         }
@@ -142,6 +136,12 @@ function renderActivityMap() {
     const forecastRow = document.getElementById('forecastRow');
     const actualRow = document.getElementById('actualRow');
     const monthLabelsRow = document.getElementById('monthLabelsRow');
+    
+    // missing DOM elements check
+    if (!forecastRow || !actualRow || !monthLabelsRow) {
+        console.error('Activity map DOM elements not found');
+        return;
+    }
     
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const cellSize = 15;
@@ -177,64 +177,104 @@ function renderActivityMap() {
         });
     }
     
-    // Build HTML strings efficiently
+    // month labels HTML
     const monthLabelsHTML = monthSpans.map(span => {
         const count = span.endIndex - span.startIndex + 1;
         const width = (count * cellSize) + ((count - 1) * gapSize);
         return `<span class="month-label" style="width:${width}px">${monthNames[span.month]}</span>`;
     }).join('');
     
-    // Custom tooltips with styled spans
+    // forecast cells HTML
     const forecastHTML = activityMapData.forecasts.map(item => 
-        `<div class="activity-cell cell-${item.status}" onclick="handleCellClick('${item.date}','forecast',${item.has_entry},'${item.status}')"><span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'forecast')}</span></div>`
+        `<div class="activity-cell cell-${item.status}" 
+             onclick="handleCellClick('${item.date}','forecast',${item.has_entry},'${item.status}')">
+            <span class="tooltip">
+                ${formatDateLabel(item.date)} - ${getStatusLabel(item.status, 'forecast', item.date)}
+            </span>
+        </div>`
     ).join('');
     
+    // actual cells HTML
     const actualHTML = activityMapData.actuals.map(item => 
-        `<div class="activity-cell cell-${item.status}" onclick="handleCellClick('${item.date}','actual',${item.has_entry},'${item.status}')"><span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'actual')}</span></div>`
+        `<div class="activity-cell cell-${item.status}" 
+             onclick="handleCellClick('${item.date}','actual',${item.has_entry},'${item.status}')">
+            <span class="tooltip">
+                ${formatDateLabel(item.date)} - ${getStatusLabel(item.status, 'actual', item.date)}
+            </span>
+        </div>`
     ).join('');
     
-    // Batch DOM updates
+    //  DOM updates
     monthLabelsRow.innerHTML = monthLabelsHTML;
     forecastRow.innerHTML = forecastHTML;
     actualRow.innerHTML = actualHTML;
     
-    // Calculate % filled (actuals: green / (green + red))
-    let greenCount = 0, redCount = 0;
-    activityMapData.actuals.forEach(a => {
-        if (a.status === 'green') greenCount++;
-        else if (a.status === 'red') redCount++;
-    });
-    const totalApplicable = greenCount + redCount;
-    const fillPercent = totalApplicable > 0 ? Math.round((greenCount / totalApplicable) * 100) : 100;
+    //  % filled (actuals: green / (green + red + blue))
+    let greenCount = 0;
+    let redCount = 0;
+    let blueCount = 0;
     
-    // Update donut center with % filled
+    activityMapData.actuals.forEach(item => {
+        if (item.status === 'green') greenCount++;
+        else if (item.status === 'red') redCount++;
+        else if (item.status === 'blue') blueCount++;
+    });
+    
+    const totalApplicable = greenCount + redCount + blueCount;
+    const fillPercent = totalApplicable > 0 
+        ? Math.round((greenCount / totalApplicable) * 100) 
+        : 100;
+    
+    //  donut center -  % filled
     const donutCenterValue = document.getElementById('donutCenterValue');
     if (donutCenterValue) {
         donutCenterValue.textContent = `${fillPercent}%`;
-        donutCenterValue.style.color = fillPercent >= 90 ? '#10b981' : fillPercent >= 70 ? '#f97316' : '#ef4444';
+        
+        // Color based on completion percentage
+        if (fillPercent >= 90) {
+            donutCenterValue.style.color = '#10b981'; // Green
+        } else if (fillPercent >= 70) {
+            donutCenterValue.style.color = '#f97316'; // Orange
+        } else {
+            donutCenterValue.style.color = '#ef4444'; // Red
+        }
     }
     
     // Hide loader, show content
     const loader = document.getElementById('myActivityLoader');
     const content = document.getElementById('myActivityContent');
+    
     if (loader) loader.style.display = 'none';
     if (content) content.style.display = 'flex';
+    
+    //  current selection if exists
     if (currentDate && currentEntryType) {
         highlightActivityCell(currentDate, currentEntryType);
     }
 }
 
-function getStatusLabel(status, type) {
+function getStatusLabel(status, type, date = null) {
+    if (status === 'gray') {
+        if (type === 'forecast' && date) {
+            const cellDate = new Date(date + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // past forecasts are "Expired", future forecasts are "Locked"
+            return cellDate < today ? 'Expired' : 'Locked';
+        }
+        return 'Locked'; // for actuals, gray always means locked (future)
+    }
+    
     const labels = {
         green: 'Completed',
         red: 'Missing Actuals',
-        blue: 'Open for Input',
-        gray: type === 'forecast' ? 'Expired' : 'Locked'
+        blue: 'Open for Input'
     };
     return labels[status] || status;
 }
 
-// Position tooltip above the donut (no scrolling)
+// position tooltip above the donut (no scrolling)
 function positionTooltip(tooltip, angle) {
     tooltip.style.bottom = 'calc(100% + 8px)';
     tooltip.style.left = '50%';
@@ -250,6 +290,14 @@ async function loadMyProjectBreakdown() {
         
         const data = await response.json();
         renderDonutChart(data.breakdown);
+        
+        // update completion percentage from backend
+        const donutCenterValue = document.getElementById('donutCenterValue');
+        if (donutCenterValue && data.completion_percentage !== undefined) {
+            const fillPercent = data.completion_percentage;
+            donutCenterValue.textContent = `${fillPercent}%`;
+            donutCenterValue.style.color = fillPercent >= 90 ? '#10b981' : fillPercent >= 70 ? '#f97316' : '#ef4444';
+        }
     } catch (error) {
         console.error('Error loading project breakdown:', error);
     }
@@ -263,15 +311,15 @@ function renderDonutChart(breakdown) {
         return;
     }
     
-    // SVG donut parameters
+    // svg donut parameters
     const cx = 50, cy = 50, r = 42;
     const circumference = 2 * Math.PI * r;
     
-    // Clear previous segments (keep the empty circle as fallback)
+    // clear previous segments (keep the empty circle as fallback)
     const existingSegments = svg.querySelectorAll('.donut-segment');
     existingSegments.forEach(seg => seg.remove());
     
-    // Build donut segments
+    // build donut segments
     let cumulativePercent = 0;
     breakdown.forEach((item, index) => {
         const color = barGradients[index % barGradients.length].base;
@@ -279,7 +327,7 @@ function renderDonutChart(breakdown) {
         const dashLength = percent * circumference;
         const dashOffset = -cumulativePercent * circumference;
         
-        // Calculate segment midpoint angle (for tooltip positioning)
+        // calculate segment midpoint angle (tooltip position)
         const startAngle = cumulativePercent * 360 - 90;
         const midAngle = startAngle + (percent * 360 / 2);
         
@@ -293,7 +341,7 @@ function renderDonutChart(breakdown) {
         circle.setAttribute('stroke-dashoffset', dashOffset);
         circle.style.animationDelay = `${index * 0.1}s`;
         
-        // Tooltip events with dynamic positioning
+        // tooltip events with dynamic positioning
         circle.addEventListener('mouseenter', () => {
             tooltip.innerHTML = `<strong>${item.project}</strong><br><span style="display: block; text-align: center;">${item.percentage}%</span>`;
             positionTooltip(tooltip, midAngle);
@@ -307,7 +355,7 @@ function renderDonutChart(breakdown) {
         cumulativePercent += percent;
     });
     
-    // Hide empty circle if we have data
+    // hide empty circle if we have data
     const emptyCircle = svg.querySelector('.donut-empty');
     if (emptyCircle) emptyCircle.style.display = breakdown.length > 0 ? 'none' : 'block';
 }
@@ -338,7 +386,7 @@ function renderTeamDonutChart(svg, tooltip, breakdown) {
     const cx = 50, cy = 50, r = 42;
     const circumference = 2 * Math.PI * r;
     
-    // Clear previous segments (keep the empty circle as fallback)
+    // clear previous segments 
     const existingSegments = svg.querySelectorAll('.donut-segment');
     existingSegments.forEach(seg => seg.remove());
     
@@ -350,7 +398,7 @@ function renderTeamDonutChart(svg, tooltip, breakdown) {
         const dashLength = percent * circumference;
         const dashOffset = -cumulativePercent * circumference;
         
-        // Calculate segment midpoint angle (for tooltip positioning)
+        // calculate segment midpoint angle (tooltip position)
         const startAngle = cumulativePercent * 360 - 90;
         const midAngle = startAngle + (percent * 360 / 2);
         
@@ -364,7 +412,7 @@ function renderTeamDonutChart(svg, tooltip, breakdown) {
         circle.setAttribute('stroke-dashoffset', dashOffset);
         circle.style.animationDelay = `${index * 0.1}s`;
         
-        // Tooltip events with dynamic positioning
+        // tooltip events 
         if (tooltip) {
             circle.addEventListener('mouseenter', () => {
                 tooltip.innerHTML = `<strong>${item.project}</strong><br><span style="display: block; text-align: center;">${item.percentage}%</span>`;
@@ -380,7 +428,6 @@ function renderTeamDonutChart(svg, tooltip, breakdown) {
         cumulativePercent += percent;
     });
     
-    // Hide empty circle if we have data
     const emptyCircle = svg.querySelector('.donut-empty');
     if (emptyCircle) emptyCircle.style.display = breakdown.length > 0 ? 'none' : 'block';
 }
@@ -390,7 +437,7 @@ function formatDateLabel(dateStr) {
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-// Week Selection Dropdown
+// week selection dropdown
 async function loadOutstandingItems() {
     try {
         console.log('Loading outstanding items...');
@@ -408,13 +455,37 @@ async function loadOutstandingItems() {
         weekDropdownItems = items;
         
         const dropdown = document.getElementById('weekDropdown');
+        const trigger = document.getElementById('weekSelectTrigger');
         dropdown.innerHTML = '';
         
-        // Separate items into outstanding and forecast
+        // check if there are no items at all
+        if (!items || items.length === 0) {
+            dropdown.innerHTML = `
+                <div class="week-dropdown-empty">
+                    <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="empty-title">No outstanding items</span>
+                    <span class="empty-subtitle">You're all caught up! 🎉</span>
+                    <span class="empty-subtitle">Use activity boxes to update items</span>
+                </div>
+            `;
+            
+            // update trigger 
+            trigger.textContent = 'All caught up!';
+            trigger.classList.add('placeholder');
+            
+            // hide the entry type badge 
+            updateEntryBadge('hidden');
+            
+            return;
+        }
+        
+        // separate items - outstanding and forecast
         const outstandingItems = items.filter(item => item.type === 'actual');
         const forecastItems = items.filter(item => item.type === 'forecast');
         
-        // Add Outstanding group if there are outstanding items
+        // add outstanding group if there are outstanding items
         if (outstandingItems.length > 0) {
             const group = document.createElement('div');
             group.className = 'week-dropdown-group';
@@ -460,14 +531,13 @@ async function loadOutstandingItems() {
             dropdown.appendChild(group);
         }
         
-        // auto-select first available forecast
+        // auto-select first forecast
         if (forecastItems.length > 0 && !currentDate) {
             const firstForecast = forecastItems[0];
             currentDate = firstForecast.date;
             currentEntryType = 'forecast';
             
             // update trigger text
-            const trigger = document.getElementById('weekSelectTrigger');
             trigger.textContent = firstForecast.week_commencing_label;
             trigger.classList.remove('placeholder');
             
@@ -546,7 +616,17 @@ function selectWeekItem(item, itemEl) {
 // Date selection (edit guard on)
 function handleCellClick(date, type, hasEntry, status) {
     if (status === 'gray') {
-        showToast(type === 'forecast' ? 'This forecast has expired' : 'Future actuals are locked', 'error');
+        if (type === 'forecast') {
+            const cellDate = new Date(date + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Past forecasts are "expired", future forecasts are "locked"
+            const message = cellDate < today ? 'This forecast has expired' : 'This forecast is locked';
+            showToast(message, 'error');
+        } else {
+            showToast('Future actuals are locked', 'error');
+        }
         return;
     }
     
@@ -719,13 +799,13 @@ function renderTeamMemberActivityMap(email, data) {
     // Tooltips (Read only for team members)
     const forecastHTML = (data.forecasts || []).map(item => 
         `<div class="activity-cell cell-${item.status} team-cell-readonly">
-            <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'forecast')}</span>
+            <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'forecast',item.date)}</span>
         </div>`
     ).join('');
     
     const actualHTML = (data.actuals || []).map(item => 
         `<div class="activity-cell cell-${item.status} team-cell-readonly">
-            <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'actual')}</span>
+            <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'actual',item.date)}</span>
         </div>`
     ).join('');
     
@@ -735,14 +815,14 @@ function renderTeamMemberActivityMap(email, data) {
     if (actualRow) actualRow.innerHTML = actualHTML;
     
     // Calculate % filled (actuals: green / (green + red))
-    let greenCount = 0, redCount = 0;
+    let greenCount = 0, redCount = 0, blueCount = 0;
     (data.actuals || []).forEach(a => {
         if (a.status === 'green') greenCount++;
         else if (a.status === 'red') redCount++;
+        else if (a.status === 'blue') blueCount++;
     });
-    const totalApplicable = greenCount + redCount;
+    const totalApplicable = greenCount + redCount + blueCount;
     const fillPercent = totalApplicable > 0 ? Math.round((greenCount / totalApplicable) * 100) : 100;
-    
     // Update % filled display in donut center
     const fillPercentEl = memberContainer.querySelector('.team-donut-value');
     if (fillPercentEl) {
@@ -1231,105 +1311,7 @@ async function loadTeamActivityMaps() {
     if (mapsContainer) mapsContainer.style.display = 'block';
 }
 
-function renderActivityMap() {
-    if (!activityMapData) return;
-    
-    const forecastRow = document.getElementById('forecastRow');
-    const actualRow = document.getElementById('actualRow');
-    const monthLabelsRow = document.getElementById('monthLabelsRow');
-    
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const cellSize = 15;
-    const gapSize = 2;
-    
-    // Calculate month spans
-    let monthSpans = [];
-    let currentMonth = -1;
-    let currentMonthStart = 0;
-    
-    activityMapData.forecasts.forEach((item, index) => {
-        const date = new Date(item.date + 'T00:00:00');
-        const month = date.getMonth();
-        
-        if (month !== currentMonth) {
-            if (currentMonth !== -1) {
-                monthSpans.push({
-                    month: currentMonth,
-                    startIndex: currentMonthStart,
-                    endIndex: index - 1
-                });
-            }
-            currentMonth = month;
-            currentMonthStart = index;
-        }
-    });
-    
-    if (currentMonth !== -1) {
-        monthSpans.push({
-            month: currentMonth,
-            startIndex: currentMonthStart,
-            endIndex: activityMapData.forecasts.length - 1
-        });
-    }
-    
-    // Build HTML strings
-    const monthLabelsHTML = monthSpans.map(span => {
-        const count = span.endIndex - span.startIndex + 1;
-        const width = (count * cellSize) + ((count - 1) * gapSize);
-        return `<span class="month-label" style="width:${width}px">${monthNames[span.month]}</span>`;
-    }).join('');
-    
-    // --- UPDATED LOGIC STARTS HERE ---
-    // Helper to check if this cell should be highlighted immediately on render
-    const getExtraClass = (date, type) => {
-        return (currentDate === date && currentEntryType === type) ? ' highlighted' : '';
-    };
 
-    const forecastHTML = activityMapData.forecasts.map(item => 
-        `<div class="activity-cell cell-${item.status}${getExtraClass(item.date, 'forecast')}" 
-              onclick="handleCellClick('${item.date}','forecast',${item.has_entry},'${item.status}')">
-              <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'forecast')}</span>
-         </div>`
-    ).join('');
-    
-    const actualHTML = activityMapData.actuals.map(item => 
-        `<div class="activity-cell cell-${item.status}${getExtraClass(item.date, 'actual')}" 
-              onclick="handleCellClick('${item.date}','actual',${item.has_entry},'${item.status}')">
-              <span class="tooltip">${formatDateLabel(item.date)} - ${getStatusLabel(item.status,'actual')}</span>
-         </div>`
-    ).join('');
-    // --- UPDATED LOGIC ENDS HERE ---
-
-    monthLabelsRow.innerHTML = monthLabelsHTML;
-    forecastRow.innerHTML = forecastHTML;
-    actualRow.innerHTML = actualHTML;
-    
-    // ... (rest of your existing donut calculation logic) ...
-    
-    let greenCount = 0, redCount = 0;
-    activityMapData.actuals.forEach(a => {
-        if (a.status === 'green') greenCount++;
-        else if (a.status === 'red') redCount++;
-    });
-    const totalApplicable = greenCount + redCount;
-    const fillPercent = totalApplicable > 0 ? Math.round((greenCount / totalApplicable) * 100) : 100;
-    
-    const donutCenterValue = document.getElementById('donutCenterValue');
-    if (donutCenterValue) {
-        donutCenterValue.textContent = `${fillPercent}%`;
-        donutCenterValue.style.color = fillPercent >= 90 ? '#10b981' : fillPercent >= 70 ? '#f97316' : '#ef4444';
-    }
-    
-    const loader = document.getElementById('myActivityLoader');
-    const content = document.getElementById('myActivityContent');
-    if (loader) loader.style.display = 'none';
-    if (content) content.style.display = 'flex';
-    
-    // Explicitly scroll to the highlighted cell if it exists after render
-    if (currentDate && currentEntryType) {
-        highlightActivityCell(currentDate, currentEntryType);
-    }
-}
 // Nudge Functions
 async function sendNudge(toEmail, toName) {
     try {
@@ -1369,7 +1351,6 @@ async function checkForNudges() {
 }
 
 async function showAndDismissNudge(nudge) {
-    // Immediately dismiss the nudge in the database so it won't show again
     try {
         await fetch('api/dismiss_nudge', {
             method: 'POST',

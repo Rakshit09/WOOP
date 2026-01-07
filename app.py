@@ -37,6 +37,49 @@ MSSQL_DOMAIN = 'emea'
 
 _mssql_engine = None
 
+def get_today():
+    """Get current date - use function to ensure freshness"""
+    #today = datetime.now().date()
+    today = datetime(2026, 3, 9).date()
+    return today
+
+def get_date_status(date_str, entry_type, has_entry):
+    """Get status for activity map cell: 'green', 'red', 'blue', or 'gray'."""
+    if has_entry:
+        return 'green'
+    
+    current_day = get_today()
+    date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+    
+    if entry_type == 'forecast':
+        current_week_monday = datetime.strptime(get_current_week_monday(), '%Y-%m-%d').date()
+        current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
+        next_week_monday = current_week_monday + timedelta(days=7)
+        
+        # Mon-Fri: current week forecast is open
+        if current_day <= current_week_friday:
+            if date_obj == current_week_monday:
+                return 'blue'
+        else:
+            # Sat-Sun: next week forecast is open
+            if date_obj == next_week_monday:
+                return 'blue'
+        
+        return 'gray'
+    else:
+        # actuals logic
+        current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
+        
+        # future weeks are locked (gray)
+        if date_obj > current_week_friday:
+            return 'gray'
+        
+        # current week is open (blue)
+        if date_obj == current_week_friday:
+            return 'blue'
+        
+        # past weeks without entry are missing (red)
+        return 'red'
 
 def get_engine():
     """get/create cached MSSQL engine"""
@@ -92,7 +135,7 @@ def get_weekday_date(target_weekday, direction='next'):
     target_weekday: 0=Monday, 4=Friday
     direction: 'next' for upcoming, 'last' for most recent
     """
-    today = datetime.now().date()
+    today = get_today()
     days_diff = (target_weekday - today.weekday()) % 7
     
     if direction == 'next':
@@ -114,30 +157,46 @@ def get_last_friday():
     return get_weekday_date(4, 'last')
 
 
-def get_weekdays_for_year(target_weekday):
-    """get all dates for a specific weekday in current year"""
-    today = datetime.now().date()
-    year_start = datetime(today.year, 1, 1).date()
-    year_end = datetime(today.year, 12, 31).date()
+def get_weeks_for_year():
+    """
+    get all weeks for the current year as (Monday, Friday) pairs - ensures forecast and actual rows are aligned
+    Returns: List of dicts with 'monday' and 'friday' keys.
+    """
+    current_day = get_today()
+    year_start = datetime(current_day.year, 1, 1).date()
+    year_end = datetime(current_day.year, 12, 31).date()
     
-    days_until_target = (target_weekday - year_start.weekday()) % 7
-    first_target = year_start + timedelta(days=days_until_target)
+    # find first Monday of the year
+    days_since_monday = year_start.weekday()  # Monday = 0
+    if days_since_monday == 0:
+        first_monday = year_start
+    else:
+        # go next Monday
+        first_monday = year_start + timedelta(days=(7 - days_since_monday))
     
-    dates = []
-    current = first_target
-    while current <= year_end:
-        dates.append(current.strftime('%Y-%m-%d'))
-        current += timedelta(weeks=1)
+    weeks = []
+    current_monday = first_monday
     
-    return dates
+    while current_monday <= year_end:
+        current_friday = current_monday + timedelta(days=4)
+        weeks.append({
+            'monday': current_monday.strftime('%Y-%m-%d'),
+            'friday': current_friday.strftime('%Y-%m-%d')
+        })
+        current_monday += timedelta(weeks=1)
+    
+    return weeks
 
 
-def get_mondays_range(weeks_back=8, weeks_forward=2):
-    return get_weekdays_for_year(0)  # Monday
+def get_mondays_range():
+    """get all Mondays for the year - aligned with Fridays"""
+    return [week['monday'] for week in get_weeks_for_year()]
 
 
-def get_fridays_range(weeks_back=8, weeks_forward=2):
-    return get_weekdays_for_year(4)  # Friday
+def get_fridays_range():
+    """get all Fridays for the year - aligned with Mondays"""
+    return [week['friday'] for week in get_weeks_for_year()]
+
 
 
 def extract_date_string(activity_week):
@@ -157,20 +216,20 @@ def extract_date_string(activity_week):
     
     return date_str
 
+def get_current_week_monday():
+    """get Monday of the current week"""
+    today = get_today()
+    days_since_monday = today.weekday()  # Monday = 0
+    return (today - timedelta(days=days_since_monday)).strftime('%Y-%m-%d')
 
-def get_date_status(date_str, entry_type, has_entry):
-    """Get status for activity map cell: 'green', 'red', 'blue', or 'gray'."""
-    if has_entry:
-        return 'green'
-    
-    today = datetime.now().date()
-    date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-    
-    if entry_type == 'forecast':
-        next_monday = datetime.strptime(get_next_monday(), '%Y-%m-%d').date()
-        return 'blue' if date_obj == next_monday else 'gray'
-    else:
-        return 'gray' if date_obj > today else 'red'
+
+def get_current_week_friday():
+    """get Friday of the current week"""
+    today = get_today()
+    days_since_monday = today.weekday()
+    monday = today - timedelta(days=days_since_monday)
+    friday = monday + timedelta(days=4)
+    return friday.strftime('%Y-%m-%d')
 
 
 # mssql data access
@@ -493,7 +552,7 @@ def get_user_email():
     
     if not username:
         if os.environ.get('FLASK_DEBUG') or app.debug:
-            return request.args.get('user', 'holger_cammerer@gallagherre.com')
+            return request.args.get('user', 'rakshit_joshi@gallagherre.com')
             #return credentials_header
             #return "unknown_user@gallagherre.com"
         return None
@@ -549,7 +608,7 @@ def verify_user_exists(email):
 
     try:
         with engine.connect() as conn:
-            # Check if email exists in the table
+            # check if email exists 
             result = conn.execute(
                 text("SELECT COUNT(*) FROM dbo.EMEA_team_list WHERE LOWER(Email) = LOWER(:email)"),
                 {"email": email}
@@ -705,13 +764,13 @@ def get_team_activity_map():
 
 @app.route('/api/outstanding_items')
 def get_outstanding_items():
-    """get outstanding items: missing actuals and upcoming forecast"""
+    """get outstanding items: missing actuals and open forecast"""
     user_email = get_user_email()
     if not user_email:
         return jsonify({'error': 'User not authenticated'}), 401
     
-    today = datetime.now().date()
     items = []
+    current_day = get_today()
     
     # Check missing actuals
     current_dates = {
@@ -720,14 +779,34 @@ def get_outstanding_items():
         if extract_date_string(e['activity_week'])
     }
     
+    current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
+    
     for friday in get_fridays_range():
         friday_date = datetime.strptime(friday, '%Y-%m-%d').date()
-        if friday_date <= today and friday not in current_dates:
-            week_start = friday_date - timedelta(days=4)
+        
+        # Skip weeks beyond the current week  # ← FIXED
+        if friday_date > current_week_friday:
+            continue
             
-            # use abbreviated months (Jan, Feb, etc.)
-            date_range_str = f"{week_start.strftime('%b %d, %Y')} - {friday_date.strftime('%b %d, %Y')}"
-            
+        # Skip if already submitted
+        if friday in current_dates:
+            continue
+        
+        week_start = friday_date - timedelta(days=4)
+        date_range_str = f"{week_start.strftime('%b %d, %Y')} - {friday_date.strftime('%b %d, %Y')}"
+        
+        # Current week = open (not missing yet), past weeks = missing
+        if friday_date == current_week_friday:
+            items.append({
+                'date': friday,
+                'week_commencing': week_start.strftime('%Y-%m-%d'),
+                'week_commencing_label': date_range_str,
+                'type': 'actual',
+                'label': f"Week {date_range_str} - Actuals",
+                'status': 'open',
+                'priority': 1
+            })
+        else:
             items.append({
                 'date': friday,
                 'week_commencing': week_start.strftime('%Y-%m-%d'),
@@ -735,29 +814,39 @@ def get_outstanding_items():
                 'type': 'actual',
                 'label': f"Week {date_range_str} - Missing Actuals",
                 'status': 'missing',
-                'priority': 1
+                'priority': 0
             })
     
-    # Check upcoming forecast
-    next_monday = get_next_monday()
+    # check forecast - find which week is open
     forecast_dates = {
         extract_date_string(e['activity_week']) 
         for e in get_forecast_entries_mssql(colleague=user_email)
         if extract_date_string(e['activity_week'])
     }
     
-    if next_monday not in forecast_dates:
-        monday_date = datetime.strptime(next_monday, '%Y-%m-%d').date()
+    current_week_monday = get_current_week_monday()
+    current_week_monday_date = datetime.strptime(current_week_monday, '%Y-%m-%d').date()
+    current_week_friday_date = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
+    next_week_monday = (current_week_monday_date + timedelta(days=7)).strftime('%Y-%m-%d')
+    next_week_monday_date = datetime.strptime(next_week_monday, '%Y-%m-%d').date()
+    
+    # Mon-Fri: current week forecast is open
+    # Sat-Sun: next week forecast is open
+    if current_day <= current_week_friday_date:
+        open_forecast_monday = current_week_monday
+        open_forecast_monday_date = current_week_monday_date
+    else:
+        open_forecast_monday = next_week_monday
+        open_forecast_monday_date = next_week_monday_date
+    
+    # Add open forecast ONLY if not already submitted
+    if open_forecast_monday not in forecast_dates:
+        friday_date = open_forecast_monday_date + timedelta(days=4)
+        date_range_str = f"{open_forecast_monday_date.strftime('%b %d, %Y')} - {friday_date.strftime('%b %d, %Y')}"
         
-        # Calculate Friday for the forecast week
-        friday_date = monday_date + timedelta(days=4)
-        
-        # use abbreviated months
-        date_range_str = f"{monday_date.strftime('%b %d, %Y')} - {friday_date.strftime('%b %d, %Y')}"
-
         items.append({
-            'date': next_monday,
-            'week_commencing': next_monday,
+            'date': open_forecast_monday,
+            'week_commencing': open_forecast_monday,
             'week_commencing_label': date_range_str,
             'type': 'forecast',
             'label': f"Week {date_range_str} - Forecast",
@@ -834,6 +923,7 @@ def get_history():
 @app.route('/submit', methods=['POST'])
 def submit():
     """submit entries for a date"""
+    today = get_today()
     user_email = get_user_email()
     data = request.get_json()
     
@@ -847,15 +937,27 @@ def submit():
     if not selected_date:
         return jsonify({'error': 'Date required'}), 400
     
-    today = datetime.now().date()
     date_obj = datetime.strptime(selected_date, '%Y-%m-%d').date()
     
     if entry_type == 'forecast':
-        next_monday = datetime.strptime(get_next_monday(), '%Y-%m-%d').date()
-        if date_obj < today and date_obj != next_monday:
-            return jsonify({'error': 'Cannot submit forecast for expired week'}), 400
-    elif date_obj > today:
-        return jsonify({'error': 'Cannot submit actuals for future week'}), 400
+        current_week_monday = datetime.strptime(get_current_week_monday(), '%Y-%m-%d').date()
+        current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
+        next_week_monday = current_week_monday + timedelta(days=7)
+        
+        # Mon-Fri: can submit current week forecast
+        # Sat-Sun: can submit next week forecast
+        if today <= current_week_friday:
+            allowed = (date_obj == current_week_monday)
+        else:
+            allowed = (date_obj == next_week_monday)
+        
+        if not allowed:
+            return jsonify({'error': 'Cannot submit forecast for this week'}), 400
+    else:  # actuals
+        # For actuals, date_obj is Friday - check it's not beyond current week
+        current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
+        if date_obj > current_week_friday:
+            return jsonify({'error': 'Cannot submit actuals for future week'}), 400
     
     try:
         saver = save_forecast_entries_mssql if entry_type == 'forecast' else save_current_entries_mssql
