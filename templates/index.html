@@ -359,7 +359,8 @@
     <script>
         window.WOOP_CONFIG = {
             projects: {{ projects | tojson }},
-            directReports: {{ direct_reports | tojson | default('[]', true) }}
+            directReports: {{ direct_reports | tojson }},
+            serverDate: "{{ server_date }}"
         };
     </script>
     

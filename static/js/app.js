@@ -253,17 +253,32 @@ function renderActivityMap() {
     }
 }
 
+function getServerToday() {
+    const serverDate = window.WOOP_CONFIG?.serverDate;
+    if (serverDate) {
+        return new Date(serverDate + 'T00:00:00');
+    }
+    // Fallback to real date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+}
+
 function getStatusLabel(status, type, date = null) {
     if (status === 'gray') {
         if (type === 'forecast' && date) {
             const cellDate = new Date(date + 'T00:00:00');
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const today = getServerToday();  
             
-            // past forecasts are "Expired", future forecasts are "Locked"
+            console.log('getStatusLabel:', {
+                cellDate: cellDate.toISOString(),
+                serverToday: today.toISOString(),
+                isExpired: cellDate < today
+            });
+            
             return cellDate < today ? 'Expired' : 'Locked';
         }
-        return 'Locked'; // for actuals, gray always means locked (future)
+        return 'Locked'; 
     }
     
     const labels = {

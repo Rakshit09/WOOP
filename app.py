@@ -40,13 +40,13 @@ _mssql_engine = None
 def get_today():
     """Get current date - use function to ensure freshness"""
     #today = datetime.now().date()
-    today = datetime(2026, 3, 9).date()
+    today = datetime(2026, 6, 9).date()
     return today
 
 def get_date_status(date_str, entry_type, has_entry):
-    """Get status for activity map cell: 'green', 'red', 'blue', or 'gray'."""
+    """Get status for activity map cell."""
     if has_entry:
-        return 'green'
+        return 'green', 'Completed'
     
     current_day = get_today()
     date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -56,30 +56,30 @@ def get_date_status(date_str, entry_type, has_entry):
         current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
         next_week_monday = current_week_monday + timedelta(days=7)
         
-        # Mon-Fri: current week forecast is open
         if current_day <= current_week_friday:
             if date_obj == current_week_monday:
-                return 'blue'
+                return 'blue', 'Open for Input'
         else:
-            # Sat-Sun: next week forecast is open
             if date_obj == next_week_monday:
-                return 'blue'
+                return 'blue', 'Open for Input'
         
-        return 'gray'
+        # Gray - determine if expired or locked
+        if date_obj < current_day:
+            return 'gray', 'Expired'
+        else:
+            return 'gray', 'Locked'
     else:
         # actuals logic
         current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
         
-        # future weeks are locked (gray)
         if date_obj > current_week_friday:
-            return 'gray'
+            return 'gray', 'Locked'
         
-        # current week is open (blue)
         if date_obj == current_week_friday:
-            return 'blue'
+            return 'blue', 'Open for Input'
         
-        # past weeks without entry are missing (red)
-        return 'red'
+        return 'red', 'Missing Actuals'
+
 
 def get_engine():
     """get/create cached MSSQL engine"""
@@ -660,7 +660,8 @@ def index():
         default_date=get_next_monday(),
         projects=load_active_projects(),
         direct_reports=get_direct_reports(user_email),
-        is_authorized=is_authorized
+        is_authorized=is_authorized,
+        server_date=get_today().strftime('%Y-%m-%d')  
     )
 
 
@@ -678,15 +679,17 @@ def get_activity_map():
     current_dates = build_date_set(get_current_entries_mssql(colleague=user_email))
     
     def build_map(dates, entry_type, existing_dates):
-        return [
-            {
+        result = []
+        for d in dates:
+            status, label = get_date_status(d, entry_type, d in existing_dates)
+            result.append({
                 'date': d,
-                'status': get_date_status(d, entry_type, d in existing_dates),
+                'status': status,
+                'status_label': label,  # Add this
                 'has_entry': d in existing_dates,
                 'label': datetime.strptime(d, '%Y-%m-%d').strftime('%b %d')
-            }
-            for d in dates
-        ]
+            })
+        return result
     
     return jsonify({
         'forecasts': build_map(get_mondays_range(), 'forecast', forecast_dates),
