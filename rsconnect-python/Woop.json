@@ -8,5 +8,15 @@
         "title": "WOOP 2.0",
         "app_mode": "python-api",
         "app_store_version": 1
+    },
+    "https://rconnect.ajgco.com": {
+        "server_url": "https://rconnect.ajgco.com",
+        "filename": "C:\\Users\\rajoshi\\Woop",
+        "app_url": "https://rconnect.ajgco.com/woop/",
+        "app_id": "dd3e18d4-e934-4020-804e-132e755e74cb",
+        "app_guid": "dd3e18d4-e934-4020-804e-132e755e74cb",
+        "title": "WOOP 2.0",
+        "app_mode": "python-api",
+        "app_store_version": 1
     }
 }

@@ -38,44 +38,66 @@ MSSQL_DOMAIN = 'emea'
 _mssql_engine = None
 
 def get_today():
-    """Get current date - use function to ensure freshness"""
-    #today = datetime.now().date()
-    today = datetime(2026, 6, 9).date()
+    """get current date"""
+    today = datetime.now().date()
+    #today = datetime(2026, 1, 16).date()
     return today
 
+
+def get_open_actuals_friday():
+    """get the Friday that is currently open for actuals input
+    
+    Actuals open on Friday and stay open through the following Thursday.
+    Window: Friday to Thursday (7 days).
+    """
+    today = get_today()
+    # days since the most recent Friday (0 if today is Friday)
+    days_since_friday = (today.weekday() - 4) % 7
+    open_friday = today - timedelta(days=days_since_friday)
+    return open_friday.strftime('%Y-%m-%d')
+
+
+def get_open_forecast_monday():
+    """get Monday that is currently open for forecast input.
+    
+    NOte: Forecast opens on Friday for the next week and stays open through that week -- should be cut off on Monday/Tuesday instead?
+    Window: Friday to Thursday (7 days).
+    """
+    today = get_today()
+    # days since the most recent Friday
+    days_since_friday = (today.weekday() - 4) % 7
+    most_recent_friday = today - timedelta(days=days_since_friday)
+    # Open forecast Monday is 3 days after that Friday (next Monday)
+    open_monday = most_recent_friday + timedelta(days=3)
+    return open_monday.strftime('%Y-%m-%d')
+
+
 def get_date_status(date_str, entry_type, has_entry):
-    """Get status for activity map cell."""
+    """get status for activity map cell."""
     if has_entry:
         return 'green', 'Completed'
     
-    current_day = get_today()
     date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
     
     if entry_type == 'forecast':
-        current_week_monday = datetime.strptime(get_current_week_monday(), '%Y-%m-%d').date()
-        current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
-        next_week_monday = current_week_monday + timedelta(days=7)
+        open_forecast_monday = datetime.strptime(get_open_forecast_monday(), '%Y-%m-%d').date()
         
-        if current_day <= current_week_friday:
-            if date_obj == current_week_monday:
-                return 'blue', 'Open for Input'
-        else:
-            if date_obj == next_week_monday:
-                return 'blue', 'Open for Input'
+        if date_obj == open_forecast_monday:
+            return 'blue', 'Open for Input'
         
         # Gray - determine if expired or locked
-        if date_obj < current_day:
+        if date_obj < open_forecast_monday:
             return 'gray', 'Expired'
         else:
             return 'gray', 'Locked'
     else:
         # actuals logic
-        current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
+        open_actuals_friday = datetime.strptime(get_open_actuals_friday(), '%Y-%m-%d').date()
         
-        if date_obj > current_week_friday:
+        if date_obj > open_actuals_friday:
             return 'gray', 'Locked'
         
-        if date_obj == current_week_friday:
+        if date_obj == open_actuals_friday:
             return 'blue', 'Open for Input'
         
         return 'red', 'Missing Actuals'
@@ -773,22 +795,22 @@ def get_outstanding_items():
         return jsonify({'error': 'User not authenticated'}), 401
     
     items = []
-    current_day = get_today()
     
-    # Check missing actuals
+    # Check missing actuals - use the new open window logic
     current_dates = {
         extract_date_string(e['activity_week']) 
         for e in get_current_entries_mssql(colleague=user_email)
         if extract_date_string(e['activity_week'])
     }
     
-    current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
+    # Get the currently open actuals Friday (Friday-Thursday window)
+    open_actuals_friday = datetime.strptime(get_open_actuals_friday(), '%Y-%m-%d').date()
     
     for friday in get_fridays_range():
         friday_date = datetime.strptime(friday, '%Y-%m-%d').date()
         
-        # Skip weeks beyond the current week  # ← FIXED
-        if friday_date > current_week_friday:
+        # Skip weeks beyond the currently open week
+        if friday_date > open_actuals_friday:
             continue
             
         # Skip if already submitted
@@ -798,8 +820,8 @@ def get_outstanding_items():
         week_start = friday_date - timedelta(days=4)
         date_range_str = f"{week_start.strftime('%b %d, %Y')} - {friday_date.strftime('%b %d, %Y')}"
         
-        # Current week = open (not missing yet), past weeks = missing
-        if friday_date == current_week_friday:
+        # Current open week = open, past weeks = missing
+        if friday_date == open_actuals_friday:
             items.append({
                 'date': friday,
                 'week_commencing': week_start.strftime('%Y-%m-%d'),
@@ -820,27 +842,16 @@ def get_outstanding_items():
                 'priority': 0
             })
     
-    # check forecast - find which week is open
+    # check forecast - use the new open window logic
     forecast_dates = {
         extract_date_string(e['activity_week']) 
         for e in get_forecast_entries_mssql(colleague=user_email)
         if extract_date_string(e['activity_week'])
     }
     
-    current_week_monday = get_current_week_monday()
-    current_week_monday_date = datetime.strptime(current_week_monday, '%Y-%m-%d').date()
-    current_week_friday_date = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
-    next_week_monday = (current_week_monday_date + timedelta(days=7)).strftime('%Y-%m-%d')
-    next_week_monday_date = datetime.strptime(next_week_monday, '%Y-%m-%d').date()
-    
-    # Mon-Fri: current week forecast is open
-    # Sat-Sun: next week forecast is open
-    if current_day <= current_week_friday_date:
-        open_forecast_monday = current_week_monday
-        open_forecast_monday_date = current_week_monday_date
-    else:
-        open_forecast_monday = next_week_monday
-        open_forecast_monday_date = next_week_monday_date
+    # Get the currently open forecast Monday (Friday-Thursday window)
+    open_forecast_monday = get_open_forecast_monday()
+    open_forecast_monday_date = datetime.strptime(open_forecast_monday, '%Y-%m-%d').date()
     
     # Add open forecast ONLY if not already submitted
     if open_forecast_monday not in forecast_dates:
@@ -926,7 +937,6 @@ def get_history():
 @app.route('/submit', methods=['POST'])
 def submit():
     """submit entries for a date"""
-    today = get_today()
     user_email = get_user_email()
     data = request.get_json()
     
@@ -943,23 +953,15 @@ def submit():
     date_obj = datetime.strptime(selected_date, '%Y-%m-%d').date()
     
     if entry_type == 'forecast':
-        current_week_monday = datetime.strptime(get_current_week_monday(), '%Y-%m-%d').date()
-        current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
-        next_week_monday = current_week_monday + timedelta(days=7)
+        # Forecast opens Friday for next week, stays open through that week (until next Friday)
+        open_forecast_monday = datetime.strptime(get_open_forecast_monday(), '%Y-%m-%d').date()
         
-        # Mon-Fri: can submit current week forecast
-        # Sat-Sun: can submit next week forecast
-        if today <= current_week_friday:
-            allowed = (date_obj == current_week_monday)
-        else:
-            allowed = (date_obj == next_week_monday)
-        
-        if not allowed:
+        if date_obj != open_forecast_monday:
             return jsonify({'error': 'Cannot submit forecast for this week'}), 400
     else:  # actuals
-        # For actuals, date_obj is Friday - check it's not beyond current week
-        current_week_friday = datetime.strptime(get_current_week_friday(), '%Y-%m-%d').date()
-        if date_obj > current_week_friday:
+        # Actuals open Friday, stay open through following Thursday (until next Friday)
+        open_actuals_friday = datetime.strptime(get_open_actuals_friday(), '%Y-%m-%d').date()
+        if date_obj > open_actuals_friday:
             return jsonify({'error': 'Cannot submit actuals for future week'}), 400
     
     try:
@@ -1012,12 +1014,12 @@ def send_reminders():
     
     if reminder_type in ['forecast', 'both']:
         results['forecast_reminders'] = send_reminder(
-            team_members, get_forecast_entries_mssql, get_next_monday(), 'forecast'
+            team_members, get_forecast_entries_mssql, get_open_forecast_monday(), 'forecast'
         )
     
     if reminder_type in ['actual', 'both']:
         results['actual_reminders'] = send_reminder(
-            team_members, get_current_entries_mssql, get_last_friday(), 'actual'
+            team_members, get_current_entries_mssql, get_open_actuals_friday(), 'actual'
         )
     
     return jsonify({
