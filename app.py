@@ -39,8 +39,8 @@ _mssql_engine = None
 
 def get_today():
     """get current date"""
-    today = datetime.now().date()
-    #today = datetime(2026, 1, 16).date()
+    #today = datetime.now().date()
+    today = datetime(2026, 2, 17).date()
     return today
 
 
@@ -73,7 +73,7 @@ def get_open_forecast_monday():
 
 
 def get_date_status(date_str, entry_type, has_entry):
-    """get status for activity map cell."""
+    """et status for activity map cell."""
     if has_entry:
         return 'green', 'Completed'
     
@@ -574,9 +574,9 @@ def get_user_email():
     
     if not username:
         if os.environ.get('FLASK_DEBUG') or app.debug:
-            return request.args.get('user', 'rakshit_joshi@gallagherre.com')
+            #return request.args.get('user', 'holger_cammerer@gallagherre.com')
             #return credentials_header
-            #return "unknown_user@gallagherre.com"
+            return "unknown_user@gallagherre.com"
         return None
     
     return lookup_email_by_username(username) or username
@@ -769,15 +769,17 @@ def get_team_activity_map():
     current_dates = build_date_set(get_current_entries_mssql(colleague=member_email))
     
     def build_map(dates, entry_type, existing_dates):
-        return [
-            {
+        result = []
+        for d in dates:
+            status, label = get_date_status(d, entry_type, d in existing_dates)
+            result.append({
                 'date': d,
-                'status': get_date_status(d, entry_type, d in existing_dates),
+                'status': status,
+                'status_label': label,
                 'has_entry': d in existing_dates,
                 'label': datetime.strptime(d, '%Y-%m-%d').strftime('%b %d')
-            }
-            for d in dates
-        ]
+            })
+        return result
     
     return jsonify({
         'forecasts': build_map(get_mondays_range(), 'forecast', forecast_dates),
