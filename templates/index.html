@@ -355,12 +355,16 @@
 
     </div>
 
+    <!-- CSRF Token for API requests -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    
     <!-- Configuration -->
     <script>
         window.WOOP_CONFIG = {
             projects: {{ projects | tojson }},
             directReports: {{ direct_reports | tojson }},
-            serverDate: "{{ server_date }}"
+            serverDate: "{{ server_date }}",
+            csrfToken: "{{ csrf_token() }}"
         };
     </script>
     

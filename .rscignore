@@ -1,0 +1,12 @@
+# .rsconnectignore
+.env
+.env.local
+.env.production
+*.env
+__pycache__/
+*.pyc
+.git/
+.gitignore
+README.md
+tests/
+*.log

@@ -4,6 +4,25 @@
 const projectList = window.WOOP_CONFIG?.projects || [];
 const directReports = window.WOOP_CONFIG?.directReports || [];
 
+// CSRF Token for secure POST requests
+function getCSRFToken() {
+    return window.WOOP_CONFIG?.csrfToken || 
+           document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+}
+
+// Helper function for POST requests with CSRF token
+async function securePost(url, data) {
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify(data)
+    });
+    return response;
+}
+
 let rowCounter = 0;
 let activeDropdown = null;
 let highlightedIndex = -1;
@@ -1244,11 +1263,7 @@ async function submitForm() {
     try {
         showToast('Submitting timesheet...', 'info');
         
-        const response = await fetch('submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date: weekDate, type: entryType, rows })
-        });
+        const response = await securePost('submit', { date: weekDate, type: entryType, rows });
         
         const result = await response.json();
         
@@ -1330,11 +1345,7 @@ async function loadTeamActivityMaps() {
 // Nudge Functions
 async function sendNudge(toEmail, toName) {
     try {
-        const response = await fetch('api/send_nudge', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to_email: toEmail })
-        });
+        const response = await securePost('api/send_nudge', { to_email: toEmail });
         
         const result = await response.json();
         
@@ -1367,11 +1378,7 @@ async function checkForNudges() {
 
 async function showAndDismissNudge(nudge) {
     try {
-        await fetch('api/dismiss_nudge', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nudge_id: nudge.id })
-        });
+        await securePost('api/dismiss_nudge', { nudge_id: nudge.id });
     } catch (error) {
         console.error('Error dismissing nudge:', error);
     }

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "locale": "English_United Kingdom.1252",
+  "metadata": {
+    "appmode": "python-api",
+    "entrypoint": "app"
+  },
+  "python": {
+    "version": "3.9.23",
+    "package_manager": {
+      "name": "pip",
+      "version": "25.2",
+      "package_file": "requirements.txt"
+    }
+  },
+  "files": {
+    "requirements.txt": {
+      "checksum": "d269d017598015e8db3daa8268d73fc7"
+    },
+    ".github/copilot-instructions.md": {
+      "checksum": "29dc634a9b9856cf2206950acb91f1aa"
+    },
+    ".gitignore": {
+      "checksum": "61baf03af6021a95c0ecbdb3a5717af7"
+    },
+    ".vscode/mcp.json": {
+      "checksum": "665ac27bdf0892083958d4229ed5dd72"
+    },
+    "app.py": {
+      "checksum": "799da24d623914fba07e62dbdc9fb458"
+    },
+    "static/css/styles.css": {
+      "checksum": "2247846c74f728299d488deccf61130f"
+    },
+    "static/js/app.js": {
+      "checksum": "c1eed46dd4bc44fd1c14ca1174a1ff87"
+    },
+    "static/logo.png": {
+      "checksum": "3308ea53592f07b636c120356d859e59"
+    },
+    "templates/index.html": {
+      "checksum": "5ec54c7f5acac362ef376bab9189bbd7"
+    }
+  }
+}

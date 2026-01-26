@@ -4,6 +4,9 @@ WOOP 2.0 Architecture - Forecast & Actuals Split
 
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from datetime import datetime, timedelta
 from functools import lru_cache
 from sqlalchemy import create_engine, text
@@ -20,14 +23,42 @@ from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
 load_dotenv()
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
-# config
+# CSRF 
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(32).hex())
+app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour validity
+csrf = CSRFProtect(app)
 
+# Rate Limiting
+def get_user_identifier():
+    """Get user identifier for rate limiting - prefer user email over IP"""
+    user_email = None
+    credentials_header = request.headers.get('Rstudio-Connect-Credentials')
+    if credentials_header:
+        try:
+            credentials = json.loads(credentials_header)
+            user_email = credentials.get('user')
+        except json.JSONDecodeError:
+            pass
+    return user_email or get_remote_address()
+
+limiter = Limiter(
+    app=app,
+    key_func=get_user_identifier,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
+
+# Inject CSRF token 
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=generate_csrf)
+
+# config
 MSSQL_SERVER = 'GREAZUK1DB036P'
 MSSQL_PORT = 51018
 MSSQL_DATABASE = 'EMEA_activity_tracker'
@@ -39,8 +70,8 @@ _mssql_engine = None
 
 def get_today():
     """get current date"""
-    #today = datetime.now().date()
-    today = datetime(2026, 2, 17).date()
+    today = datetime.now().date()
+    #today = datetime(2026, 2, 17).date()
     return today
 
 
@@ -255,12 +286,30 @@ def get_current_week_friday():
 
 
 # mssql data access
+ALLOWED_TABLES = {
+    'forecast': ('dbo.activity_forecast', 'f'),
+    'actual': ('dbo.activity_actual', 'a'),
+}
 
-def get_activity_entries(table_name, alias, colleague=None, activity_week=None):
-    """reader for activity_forecast and activity_actual tables"""
+
+def get_activity_entries(entry_type, colleague=None, activity_week=None):
+    """reader for activity_forecast and activity_actual tables
+    
+    Args:
+        entry_type: 'forecast' or 'actual' - used to lookup whitelisted table/alias
+        colleague: optional colleague email to filter by
+        activity_week: optional activity week date to filter by
+    """
     engine = get_engine()
     if engine is None:
         return []
+
+    # Validate entry_type against whitelist 
+    if entry_type not in ALLOWED_TABLES:
+        logger.error(f"Invalid entry_type: {entry_type}")
+        return []
+    
+    table_name, alias = ALLOWED_TABLES[entry_type]
 
     try:
         conditions = []
@@ -313,18 +362,30 @@ def get_activity_entries(table_name, alias, colleague=None, activity_week=None):
 
 
 def get_forecast_entries_mssql(colleague=None, activity_week=None):
-    return get_activity_entries("dbo.activity_forecast", "f", colleague, activity_week)
+    return get_activity_entries("forecast", colleague, activity_week)
 
 
 def get_current_entries_mssql(colleague=None, activity_week=None):
-    return get_activity_entries("dbo.activity_actual", "a", colleague, activity_week)
+    return get_activity_entries("actual", colleague, activity_week)
 
 
-def save_activity_entries(table_name, colleague_email, activity_week, rows):
-    """writer for activity_forecast and activity_actual tables"""
+def save_activity_entries(entry_type, colleague_email, activity_week, rows):
+    """writer for activity_forecast and activity_actual tables
+    
+    Args:
+        entry_type: 'forecast' or 'actual' - used to lookup whitelisted table/alias
+        colleague_email: the colleague's email address
+        activity_week: the activity week date
+        rows: list of row data to save
+    """
     engine = get_engine()
     if engine is None:
         raise Exception("MSSQL engine not available")
+
+    if entry_type not in ALLOWED_TABLES:
+        raise ValueError(f"Invalid entry_type: {entry_type}")
+    
+    table_name, _ = ALLOWED_TABLES[entry_type]
 
     activity_week_str = (
         activity_week if isinstance(activity_week, str) 
@@ -336,7 +397,6 @@ def save_activity_entries(table_name, colleague_email, activity_week, rows):
 
     try:
         with engine.begin() as conn:
-            # DELETE EXISTING ENTRIES FIRST for the same activity week and colleague - used in modifying submitted entries
             conn.execute(
                 text(f"""
                     DELETE FROM {table_name}
@@ -381,20 +441,20 @@ def save_activity_entries(table_name, colleague_email, activity_week, rows):
                 )
         return True
     except Exception as e:
-        logger.error(f"Error saving to {table_name}: {e}")
+        logger.error(f"Error saving to {entry_type}: {e}")
         raise
 
 
 def save_forecast_entries_mssql(colleague_email, activity_week, rows):
-    return save_activity_entries("dbo.activity_forecast", colleague_email, activity_week, rows)
+    return save_activity_entries("forecast", colleague_email, activity_week, rows)
 
 
 def save_current_entries_mssql(colleague_email, activity_week, rows):
-    return save_activity_entries("dbo.activity_actual", colleague_email, activity_week, rows)
+    return save_activity_entries("actual", colleague_email, activity_week, rows)
 
 
 def get_most_recent_entry_mssql(colleague):
-    """fetchmost recent entry (forecast / actual)"""
+    """fetch most recent entry (forecast / actual)"""
     engine = get_engine()
     if engine is None:
         return None, None
@@ -403,11 +463,12 @@ def get_most_recent_entry_mssql(colleague):
         colleague_name = get_colleague_name_from_email(colleague)
         with engine.connect() as conn:
             results = {}
-            for entry_type, table in [('forecast', 'activity_forecast'), ('actual', 'activity_actual')]:
+            for entry_type in ALLOWED_TABLES:
+                table_name, _ = ALLOWED_TABLES[entry_type]
                 result = conn.execute(
                     text(f"""
                         SELECT TOP 1 CAST(activity_week AS DATE), record_created
-                        FROM dbo.{table} 
+                        FROM {table_name} 
                         WHERE (LOWER(colleague) = LOWER(:colleague_email) OR LOWER(colleague) = LOWER(:colleague_name))
                         ORDER BY record_created DESC"""),
                     {'colleague_email': colleague, 'colleague_name': colleague_name}
@@ -546,7 +607,7 @@ def lookup_email_by_username(username):
             headers={'Authorization': f'Key {api_key}'},
             params={'prefix': username},
             timeout=10,
-            verify=False
+            verify=False,
         )
         
         if response.status_code == 200:
@@ -642,23 +703,6 @@ def verify_user_exists(email):
         return False
 
 # api routes
-
-@app.route('/api/health')
-def health_check():
-    """debug endpoint to check app status"""
-    import sys
-    return jsonify({
-        'status': 'ok',
-        'python_version': sys.version,
-        'debug_mode': app.debug,
-        'env_vars': {
-            'CONNECT_SERVER': bool(os.environ.get('CONNECT_SERVER')),
-            'CONNECT_API_KEY': bool(os.environ.get('CONNECT_API_KEY')),
-            'MSSQL_USERNAME': bool(os.environ.get('MSSQL_USERNAME')),
-            'MSSQL_PASSWORD': bool(os.environ.get('MSSQL_PASSWORD')),
-        }
-    })
-
 
 @app.route('/')
 def index():
@@ -937,6 +981,7 @@ def get_history():
 
 
 @app.route('/submit', methods=['POST'])
+@limiter.limit("30 per hour")
 def submit():
     """submit entries for a date"""
     user_email = get_user_email()
@@ -975,6 +1020,8 @@ def submit():
 
 
 @app.route('/api/send_reminders', methods=['POST'])
+@limiter.limit("5 per hour")
+@csrf.exempt  # API endpoint uses API key authentication
 def send_reminders():
     """send reminder emails to team members"""
     reminder_type = request.args.get('type', 'both')
@@ -1033,6 +1080,7 @@ def send_reminders():
 
 
 @app.route('/api/send_nudge', methods=['POST'])
+@limiter.limit("10 per hour")
 def send_nudge():
     """send a nudge to a team member"""
     user_email = get_user_email()
@@ -1127,6 +1175,7 @@ def get_nudges():
         return jsonify([])
 
 @app.route('/api/dismiss_nudge', methods=['POST'])
+@limiter.limit("60 per hour")
 def dismiss_nudge():
     """dismiss nudge"""
     user_email = get_user_email()
