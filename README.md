@@ -1,189 +1,40 @@
-# WOOP 2.0
+WOOP 2.0 
 
-A Flask-based web application for weekly resource scheduling and timesheet management. Designed to replace legacy Power Apps WOOP with a modern, fast, and intuitive interface.
+WOOP 2.0 replaces the old WOOP which was based on Power Apps. The goal was simple: make workload planning and timesheets easier and faster. It’s a fast, single-page Flask app that is deployed on posit Connect so you can get your scheduling done and get back to actual work.
 
-## Features
+Why this is better:
+Speed: No page reloads. Everything happens instantly.
+Smart Search: Just start typing a project name; the filter handles the rest.
+Visual Cues: The UI changes color to let you know if you're under or over your 5-day target.
+One-Click Copy: If this week looks like last week, just hit "Copy Last Week" and you're done.
+Getting Started
+1. Grab the dependencies:
 
-- **Zero-Friction Design**: Minimal clicks, instant feedback, no page reloads
-- **Type-Ahead Project Search**: Fast client-side filtering with HTML5 datalist
-- **Real-Time Validation**: Visual feedback on total days (target: 5.0 days/week)
-- **Copy Last Week**: One-click replication of previous timesheet
-- **Granular Time Entry**: Support for 0.5 day increments
-- **Transaction-Safe**: Atomic database operations prevent data corruption
-- **SSO Integration**: Authentication via Posit Connect headers
-
-## Technology Stack
-
-- **Backend**: Python 3.10+, Flask, Flask-SQLAlchemy
-- **Database**: SQLite (production-ready for MSSQL migration)
-- **Frontend**: HTML5, Vanilla JavaScript (ES6), Tailwind CSS
-- **Data Source**: CSV-based project reference data
-
-## Quick Start
-
-### 1. Install Dependencies
-
-```bash
 pip install -r requirements.txt
-```
 
-### 2. Initialize Database
+2. Set up your projects:
+Open projects.csv and list the projects you want available in the dropdown.
 
-The database will be automatically created on first run. To manually initialize:
+3. Run it:
 
-```python
-from app import init_db
-init_db()
-```
-
-### 3. Configure Projects
-
-Edit `projects.csv` to add your organization's projects:
-
-```csv
-ProjectName,Active
-Project Alpha,True
-Internal - Admin,True
-Legacy Project,False
-```
-
-### 4. Run the Application
-
-```bash
 python app.py
-```
+Head to http://localhost:5000.
 
-The app will start on `http://localhost:5000`
+Tech Stack
+Backend: Python (Flask + SQLAlchemy)
+Frontend: Vanilla JS &  CSS
+Database: MSSQL
 
-## Development Mode
+Project Layout
+.
+├── app.py              # Flask server & database logic
+├── projects.csv        # List of active projects for the dropdown
+├── requirements.txt    # Python packages
+├── README.md           # readme
+├── .gitignore          # gitignore
+├── templates/
+│   └── index.html      # frontend page
+└── static/             # CSS, JS, images
 
-For local testing without Posit Connect headers:
-
-```
-http://localhost:5000?user=your.email@example.com
-```
-
-## Project Structure
-
-```
-/root
-  ├── app.py                # Main Flask application
-  ├── projects.csv          # Project reference data
-  ├── timesheet.db          # SQLite database (auto-created)
-  ├── requirements.txt      # Python dependencies
-  ├── README.md             # Documentation
-  └── templates/
-      └── index.html        # Single Page Application
-```
-
-## Database Schema
-
-### TimesheetEntry Table
-
-| Column           | Type     | Description                          |
-|------------------|----------|--------------------------------------|
-| id               | Integer  | Primary key (auto-increment)         |
-| user_email       | String   | User identifier from SSO             |
-| week_commencing  | String   | Monday date (YYYY-MM-DD)             |
-| project_name     | String   | Selected project name                |
-| days             | Float    | Time allocated (0.5 increments)      |
-| notes            | Text     | Task description                     |
-| submitted_at     | DateTime | Submission timestamp                 |
-
-## API Endpoints
-
-### `GET /`
-Renders the main timesheet interface with user context and project list.
-
-### `GET /api/get_history`
-Returns the most recent week's timesheet entries for the authenticated user.
-
-**Response:**
-```json
-[
-  {
-    "project": "Project Alpha",
-    "days": 2.5,
-    "notes": "Feature development"
-  }
-]
-```
-
-### `POST /submit`
-Submits timesheet entries for a specific week (overwrites existing entries).
-
-**Request:**
-```json
-{
-  "date": "2025-12-02",
-  "rows": [
-    {
-      "project": "Project Alpha",
-      "days": 3.0,
-      "notes": "Implementation"
-    }
-  ]
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Timesheet submitted successfully for week of 2025-12-02"
-}
-```
-
-## User Interface
-
-### Color-Coded Totals
-- **Orange**: < 5.0 days (incomplete)
-- **Green**: = 5.0 days (target met)
-- **Red**: > 5.0 days (over-allocation)
-
-### Key Interactions
-1. **Add Row**: Click "➕ Add Row" to create new entries
-2. **Delete Row**: Click 🗑️ to remove individual entries
-3. **Copy Last Week**: Click "📋 Copy Last Week" to replicate previous timesheet
-4. **Submit**: Click "✓ Submit Timesheet" to save entries
-
-## Deployment to Posit Connect
-
-1. Package the application directory
-2. Deploy via Posit Connect dashboard or CLI
-3. Configure authentication to pass `X-Auth-User` header
-4. Set appropriate permissions for user access
-
-## Migration to MSSQL
-
-To migrate from SQLite to MSSQL:
-
-1. Update `app.py` configuration:
-
-```python
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mssql+pyodbc://user:pass@server/db?driver=ODBC+Driver+17+for+SQL+Server'
-```
-
-2. Install additional dependency:
-
-```bash
-pip install pyodbc
-```
-
-3. Run database migration or recreate tables
-
-## Future Enhancements
-
-- **Magic Link "Chaser" Workflow**: Automated email reminders with one-click submission
-- **Historical View**: Display past timesheet submissions
-- **Export Functionality**: Download timesheets as CSV/Excel
-- **Admin Dashboard**: View team-wide submissions and analytics
-
-## License
-
-Internal use only - [Gallagher Re]
-
-## Support
-
-For issues or questions, contact: [rakshit_joshi@gallagherre.com]
-
+Deployment Notes
+This app is designed to run on Posit Connect. It looks for the X-Auth-User header for authentication.
