@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
 # CSRF 
+if not os.environ.get('SECRET_KEY'):
+    logger.warning("SECRET_KEY not set in environment. Using random key. This will cause CSRF errors in multi-worker deployments.")
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(32).hex())
 app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour validity
 csrf = CSRFProtect(app)
@@ -71,7 +73,6 @@ _mssql_engine = None
 def get_today():
     """get current date"""
     today = datetime.now().date()
-    #today = datetime(2026, 2, 17).date()
     return today
 
 
@@ -1213,47 +1214,8 @@ def dismiss_nudge():
         logger.error(f"Error dismissing nudge: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/debug_auth')
-def debug_auth():
-    """Debug authorization issues"""
-    user_email = get_user_email()
-    engine = get_engine()
-    
-    debug_info = {
-        'user_email': user_email,
-        'engine_available': engine is not None,
-        'verify_result': None,
-        'db_emails_like_user': []
-    }
-    
-    if engine and user_email:
-        try:
-            with engine.connect() as conn:
-                debug_info['verify_result'] = verify_user_exists(user_email)
-                result = conn.execute(
-                    text("""
-                        SELECT Email, LEN(Email) as len, 
-                               LOWER(LTRIM(RTRIM(Email))) as cleaned
-                        FROM dbo.EMEA_team_list 
-                        WHERE Email LIKE :pattern
-                    """),
-                    {"pattern": f"%{user_email.split('@')[0]}%"}
-                ).fetchall()
-                
-                debug_info['db_emails_like_user'] = [
-                    {'email': r[0], 'length': r[1], 'cleaned': r[2]} 
-                    for r in result
-                ]
-                
-                # exact comparison
-                debug_info['user_email_lower'] = user_email.lower()
-                debug_info['user_email_length'] = len(user_email)
-                
-        except Exception as e:
-            debug_info['error'] = str(e)
-    
-    return jsonify(debug_info)
+
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)
