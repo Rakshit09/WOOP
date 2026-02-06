@@ -880,6 +880,11 @@ async function loadEntriesForDate(date, type) {
             data.entries.forEach(entry => {
                 addNewRow(entry.project, entry.days, entry.notes);
             });
+            
+            // Notify user if pre-populated from forecast
+            if (data.pre_populated) {
+                showToast('Auto-populated from forecast — review and submit', 'info');
+            }
         } else {
             addNewRow();
         }
@@ -1434,15 +1439,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Add initial row
     addNewRow();
     
-    // Check health endpoint 
-    try {
-        const healthResponse = await fetch('api/health');
-        const healthData = await healthResponse.json();
-        console.log('Health check:', healthData);
-    } catch (e) {
-        console.warn('Health check failed:', e);
-    }
-    
+
     // Load all data in parallel
     try {
         await Promise.all([loadActivityMap(), loadOutstandingItems(), loadTeamActivityMaps(), loadMyProjectBreakdown()]);

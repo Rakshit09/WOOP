@@ -69,6 +69,13 @@ MSSQL_DOMAIN = 'emea'
 
 
 _mssql_engine = None
+# Project cache
+_project_id_cache = {}
+_project_id_cache_expiry = None
+_active_projects_cache = []
+_active_projects_cache_expiry = None
+PROJECT_CACHE_TTL = 300  # 5 minutes
+
 
 def get_today():
     """get current date"""
@@ -495,32 +502,53 @@ def get_most_recent_entry_mssql(colleague):
 
 # project & team data
 
+_active_projects_cache = []
+_active_projects_cache_expiry = None
+
+
 def load_active_projects():
-    """load projects from database"""
+    """load projects from database (cached for 5 minutes)"""
+    global _active_projects_cache, _active_projects_cache_expiry
+    
+    now = datetime.utcnow()
+    if _active_projects_cache and _active_projects_cache_expiry and now < _active_projects_cache_expiry:
+        return _active_projects_cache
+    
     engine = get_engine()
     if engine is None:
-        return []
+        return _active_projects_cache if _active_projects_cache else []
     
     try:
         df = pd.read_sql("SELECT Title FROM dbo.projects ORDER BY [Sorting] ASC", engine)
-        return df['Title'].tolist()
+        _active_projects_cache = df['Title'].tolist()
+        _active_projects_cache_expiry = now + timedelta(seconds=PROJECT_CACHE_TTL)
+        return _active_projects_cache
     except Exception as e:
         logger.error(f"Error loading projects: {e}")
-        return []
+        return _active_projects_cache if _active_projects_cache else []
 
 
 def get_project_id_mapping():
-    """get mapping of project Title -> ProjectID"""
+    """get mapping of project Title -> ProjectID (cached for 5 minutes)"""
+    global _project_id_cache, _project_id_cache_expiry
+    
+    now = datetime.utcnow()
+    if _project_id_cache and _project_id_cache_expiry and now < _project_id_cache_expiry:
+        return _project_id_cache
+    
     engine = get_engine()
     if engine is None:
-        return {}
+        return _project_id_cache if _project_id_cache else {}
     
     try:
         df = pd.read_sql("SELECT ProjectID, Title FROM dbo.projects", engine)
-        return dict(zip(df['Title'], df['ProjectID']))
+        _project_id_cache = dict(zip(df['Title'], df['ProjectID']))
+        _project_id_cache_expiry = now + timedelta(seconds=PROJECT_CACHE_TTL)
+        return _project_id_cache
     except Exception as e:
         logger.error(f"Error loading project mapping: {e}")
-        return {}
+        # Return stale cache rather than empty dict if DB fails
+        return _project_id_cache if _project_id_cache else {}
 
 
 def get_colleague_name_from_email(email):
@@ -940,7 +968,27 @@ def get_entry():
         for e in entries
     ]
     
-    return jsonify({'entries': result, 'exists': len(result) > 0, 'date': date, 'type': entry_type})
+    # Auto-populate actuals from forecast if no actual entries exist
+    pre_populated = False
+    if entry_type == 'actual' and len(result) == 0:
+        # Actual date is Friday; corresponding forecast is Monday = Friday - 4 days
+        date_obj = datetime.strptime(date, '%Y-%m-%d').date()
+        forecast_monday = (date_obj - timedelta(days=4)).strftime('%Y-%m-%d')
+        forecast_entries = get_forecast_entries_mssql(colleague=user_email, activity_week=forecast_monday)
+        if forecast_entries:
+            result = [
+                {'project': e['assignment_ID'], 'days': e['allocation_days'], 'notes': e['notes'] or ''}
+                for e in forecast_entries
+            ]
+            pre_populated = True
+    
+    return jsonify({
+        'entries': result, 
+        'exists': len(result) > 0 and not pre_populated, 
+        'date': date, 
+        'type': entry_type,
+        'pre_populated': pre_populated
+    })
 
 
 @app.route('/api/get_history')
