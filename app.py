@@ -29,10 +29,12 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
 # CSRF 
-if not os.environ.get('SECRET_KEY'):
-    logger.warning("SECRET_KEY not set in environment. Using random key. This will cause CSRF errors in multi-worker deployments.")
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(32).hex())
-app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour validity
+secret_key = os.environ.get('SECRET_KEY')
+if not secret_key:
+    logger.error("SECRET_KEY not set! CSRF will fail in multi-worker deployments.")
+    secret_key = 'fallback-dev-key-do-not-use-in-production'
+app.config['SECRET_KEY'] = secret_key
+app.config['WTF_CSRF_TIME_LIMIT'] = 8600  # 1 hour validity
 csrf = CSRFProtect(app)
 
 # Rate Limiting
@@ -51,7 +53,7 @@ def get_user_identifier():
 limiter = Limiter(
     app=app,
     key_func=get_user_identifier,
-    default_limits=["200 per day", "50 per hour"],
+    default_limits=["1000 per day", "500 per hour"],
     storage_uri="memory://",
 )
 
