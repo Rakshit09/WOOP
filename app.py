@@ -32,7 +32,7 @@ app = Flask(__name__, static_url_path='/static', static_folder='static')
 secret_key = os.environ.get('SECRET_KEY')
 if not secret_key:
     logger.error("SECRET_KEY not set! CSRF will fail in multi-worker deployments.")
-    secret_key = 'fallback-dev-key-do-not-use-in-production'
+#    secret_key = 'fallback-dev-key-do-not-use-in-production'
 app.config['SECRET_KEY'] = secret_key
 app.config['WTF_CSRF_TIME_LIMIT'] = 8600  # 1 hour validity
 csrf = CSRFProtect(app)
@@ -632,13 +632,18 @@ def lookup_email_by_username(username):
     if not connect_server or not api_key:
         return None
     
+   
+    app_root = os.path.dirname(os.path.abspath(__file__))
+    ca_cert_path = os.path.join(app_root, "certs", "ca-bundle.pem")
+
+
     try:
         response = requests.get(
             f'{connect_server}/__api__/v1/users',
             headers={'Authorization': f'Key {api_key}'},
             params={'prefix': username},
             timeout=10,
-            verify=False,
+            verify=ca_cert_path
         )
         
         if response.status_code == 200:

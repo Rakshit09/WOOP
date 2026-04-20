@@ -203,20 +203,20 @@ function renderActivityMap() {
         return `<span class="month-label" style="width:${width}px">${monthNames[span.month]}</span>`;
     }).join('');
     
-    // forecast cells HTML (use data attributes for event delegation instead of inline onclick)
+    // forecast cells HTML
     const forecastHTML = activityMapData.forecasts.map(item => 
         `<div class="activity-cell cell-${item.status}" 
-             data-date="${item.date}" data-type="forecast" data-has-entry="${item.has_entry}" data-status="${item.status}">
+             onclick="handleCellClick('${item.date}','forecast',${item.has_entry},'${item.status}')">
             <span class="tooltip">
                 ${formatDateLabel(item.date)} - ${getStatusLabel(item.status, 'forecast', item.date)}
             </span>
         </div>`
     ).join('');
     
-    // actual cells HTML (use data attributes for event delegation instead of inline onclick)
+    // actual cells HTML
     const actualHTML = activityMapData.actuals.map(item => 
         `<div class="activity-cell cell-${item.status}" 
-             data-date="${item.date}" data-type="actual" data-has-entry="${item.has_entry}" data-status="${item.status}">
+             onclick="handleCellClick('${item.date}','actual',${item.has_entry},'${item.status}')">
             <span class="tooltip">
                 ${formatDateLabel(item.date)} - ${getStatusLabel(item.status, 'actual', item.date)}
             </span>
@@ -228,16 +228,6 @@ function renderActivityMap() {
     monthLabelsRow.innerHTML = DOMPurify.sanitize(monthLabelsHTML);
     forecastRow.innerHTML   = DOMPurify.sanitize(forecastHTML);
     actualRow.innerHTML     = DOMPurify.sanitize(actualHTML);
-
-    // Event delegation for activity cell clicks
-    [forecastRow, actualRow].forEach(row => {
-        row.onclick = (e) => {
-            const cell = e.target.closest('.activity-cell');
-            if (cell) {
-                handleCellClick(cell.dataset.date, cell.dataset.type, cell.dataset.hasEntry === 'true' || cell.dataset.hasEntry === 'True', cell.dataset.status);
-            }
-        };
-    });
 
     
     //  % filled (actuals: green / (green + red + blue))
@@ -1142,18 +1132,7 @@ function addNewRow(project = '', days = '', notes = '') {
         </div>
     </div>`;
 
-    //container.insertAdjacentHTML('beforeend', html); // escapeHtml already sanitizes user data
-    
-    DOMPurify.setConfig({
-    ADD_ATTR: ['onclick', 'oninput', 'onkeydown']
-    });
-
-    container.insertAdjacentHTML(
-    'beforeend',
-    DOMPurify.sanitize(html)
-    );
-
-
+    container.insertAdjacentHTML('beforeend', DOMPurify.sanitize(html));
     calculateTotal();
 }
 

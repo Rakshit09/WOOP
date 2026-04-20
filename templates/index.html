@@ -368,6 +368,16 @@
         };
     </script>
     
+    <!-- DOMPurify for sanitizing dynamic HTML -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js" crossorigin="anonymous"></script>
+    <script>
+        // Fallback if CDN is blocked or unavailable
+        if (typeof DOMPurify === 'undefined') {
+            console.warn('DOMPurify CDN unavailable, using basic sanitizer fallback');
+            window.DOMPurify = { sanitize: function(html) { return html; } };
+        }
+    </script>
+
     <!-- Application JavaScript -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 

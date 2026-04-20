@@ -1,0 +1,11 @@
+SELECT TOP (1000) [activity_week]
+      ,[colleague]
+      ,[assignment_ID]
+      ,[allocation_days]
+      ,[notes]
+      ,[record_created]
+  FROM [EMEA_activity_tracker].[dbo].[activity_actual] order by record_created
+
+UPDATE [EMEA_activity_tracker].[dbo].[activity_forecast]
+SET colleague = 'Nigel Moreira'
+WHERE colleague = 'nmoreira@emea.ajgco.com';
